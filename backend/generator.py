@@ -195,7 +195,7 @@ def generate_behavioral_history(user_id: str):
             expense_prob = 0.8 if sim_balance > LIQUIDITY_FEEDBACK_THRESHOLD else 0.4
 
             # Daily variable expenses (1–2 per day, e.g. coffee, transport, tools)
-            for _ in range(rng.randint(1, 2)):
+            for _ in range(rng.randint(2, 3)):
                 if rng.random() < expense_prob:
                     actual_date = adjust_to_weekday(tx_date)
                     amt = -round(rng.uniform(15, 80), 2)
@@ -234,10 +234,10 @@ def generate_behavioral_history(user_id: str):
                 "status": "cleared", "persona": "Expense"
             })
 
-        # Dataset size guard: 600–800 window
+        # Dataset size guard: 500–900 window
         # Lower bound (600): prevents sparse ML feature distributions
         # Upper bound (800): prevents density drift across users at scale
-        if not (600 <= len(transactions) <= 800):
+        if not (500 <= len(transactions) <= 900):
             continue  # Discard and retry
 
         # FIX 3: Precompute _actual_dt on every record once — avoids repeated fromisoformat() during sort
