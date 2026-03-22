@@ -390,3 +390,26 @@ def extract_features(transactions: list, user_id: str) -> dict:
         "early_payment_count" : early_payment_count,  # positive reliability signal
         "credit_risk_score"   : credit_risk_score     # 0–100 composite (float)
     }
+
+    def upload_to_supabase(user_id: str):
+    """
+    This is the core execution function. 
+    It runs the simulation and batch-inserts 600+ records into your DB.
+    """
+    # 1. Generate the raw behavioral history (The Simulation)
+    data = generate_behavioral_history(user_id)
+    
+    try:
+        # 2. Batch insert into Supabase (100 rows at a time for stability)
+        print(f"📡 Attempting to upload {len(data)} records for user {user_id}...")
+        
+        for i in range(0, len(data), 100):
+            batch = data[i : i + 100]
+            supabase.table("transactions").insert(batch).execute()
+        
+        return {"status": "success", "rows": len(data)}
+        
+    except Exception as e:
+        print(f"❌ Database Upload Failed: {str(e)}")
+        # We re-raise the error so FastAPI's error handler can catch it
+        raise e
