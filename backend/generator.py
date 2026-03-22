@@ -391,7 +391,7 @@ def extract_features(transactions: list, user_id: str) -> dict:
         "credit_risk_score"   : credit_risk_score     # 0–100 composite (float)
     }
 
-    def upload_to_supabase(user_id: str):
+def upload_to_supabase(user_id: str):
     """
     This is the core execution function. 
     It runs the simulation and batch-inserts 600+ records into your DB.
