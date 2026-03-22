@@ -61,7 +61,7 @@ def generate_behavioral_history(user_id: str):
 
     best_attempt = []
     best_score = float('inf')
-    initial_liquidity = 10000.0
+    initial_liquidity = 60000.0
 
     # FIX 2: Timezone-aware UTC datetime — prevents silent misalignment with Supabase/Postgres
     # datetime.now() is timezone-naive → joins, aggregations, and dashboards can silently drift
@@ -195,7 +195,7 @@ def generate_behavioral_history(user_id: str):
             expense_prob = 0.8 if sim_balance > LIQUIDITY_FEEDBACK_THRESHOLD else 0.4
 
             # Daily variable expenses (1–2 per day, e.g. coffee, transport, tools)
-            for _ in range(rng.randint(2, 3)):
+            for _ in range(rng.randint(1, 2)):
                 if rng.random() < expense_prob:
                     actual_date = adjust_to_weekday(tx_date)
                     amt = -round(rng.uniform(15, 80), 2)
@@ -227,17 +227,17 @@ def generate_behavioral_history(user_id: str):
         for _ in range(5):
             shock_date = start_date + timedelta(days=rng.randint(30, 330))
             transactions.append({
-                "user_id": user_id, "amount": -round(rng.uniform(15000, 35000), 2),
+                "user_id": user_id, "amount": -round(rng.uniform(3000, 8000), 2),
                 "category": "Shock", "client_name": "Emergency",
                 "expected_date": shock_date.isoformat(),
                 "actual_date": adjust_to_weekday(shock_date).isoformat(),
                 "status": "cleared", "persona": "Expense"
             })
 
-        # Dataset size guard: 500–900 window
+        # Dataset size guard: 600–800 window
         # Lower bound (600): prevents sparse ML feature distributions
         # Upper bound (800): prevents density drift across users at scale
-        if not (500 <= len(transactions) <= 900):
+        if not (600 <= len(transactions) <= 800):
             continue  # Discard and retry
 
         # FIX 3: Precompute _actual_dt on every record once — avoids repeated fromisoformat() during sort
@@ -391,25 +391,25 @@ def extract_features(transactions: list, user_id: str) -> dict:
         "credit_risk_score"   : credit_risk_score     # 0–100 composite (float)
     }
 
-def upload_to_supabase(user_id: str):
+    def upload_to_supabase(user_id: str):
     """
     This is the core execution function. 
     It runs the simulation and batch-inserts 600+ records into your DB.
     """
     # 1. Generate the raw behavioral history (The Simulation)
-    data = generate_behavioral_history(user_id)
+        data = generate_behavioral_history(user_id)
     
-    try:
+            try:
         # 2. Batch insert into Supabase (100 rows at a time for stability)
-        print(f"📡 Attempting to upload {len(data)} records for user {user_id}...")
+                print(f"📡 Attempting to upload {len(data)} records for user {user_id}...")
         
-        for i in range(0, len(data), 100):
-            batch = data[i : i + 100]
-            supabase.table("transactions").insert(batch).execute()
+                    for i in range(0, len(data), 100):
+                        batch = data[i : i + 100]
+                        supabase.table("transactions").insert(batch).execute()
         
-        return {"status": "success", "rows": len(data)}
+            return {"status": "success", "rows": len(data)}
         
-    except Exception as e:
-        print(f"❌ Database Upload Failed: {str(e)}")
+                except Exception as e:
+            print(f"❌ Database Upload Failed: {str(e)}")
         # We re-raise the error so FastAPI's error handler can catch it
-        raise e
+            raise e
