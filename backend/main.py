@@ -4,24 +4,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-
-# Import the engines you built
+# 1. Imports FIRST
+from advisor import get_survival_plan
 from generator import upload_to_supabase
 from prophet_engine import fetch_and_prepare_data, generate_forecast_and_risk
 
-# 🎯 Import the final refined function from your generator
-from generator import upload_to_supabase
-
-# 1. Load environment variables
+# 2. Initialize App SECOND (This fixes your error)
 load_dotenv()
-
 app = FastAPI()
 
-
-# Allows the frontend to talk to this backend
-
-# 2. CORS Configuration: Essential for Gayatri's Frontend (3000) to talk to your Backend (8000)
-
+# 3. CORS Configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -30,57 +22,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# 3. Request Model (Expects a JSON body with user_id)
-
 class InitRequest(BaseModel):
     user_id: str
 
+# --- ROUTES ---
+
 @app.get("/")
 def read_root():
+    return {"status": "online", "project": "GigNavigator 2.0"}
 
-    return {"status": "online", "engine": "GigNavigator AI Forecasting System"}
-
-    return {
-        "status": "online",
-        "project": "GigNavigator 2.0",
-        "engine": "Behavioral Financial Simulator"
-    }
-
-# --- PHASE 1: DATA SEEDING ---
 @app.post("/generate-data")
 async def seed_data(request: InitRequest):
-    """
-    Triggers the high-fidelity behavioral simulation. 
-    Runs 10 iterations to find the best risk-calibrated dataset (600-700 records).
-    """
     try:
         result = upload_to_supabase(request.user_id)
         return {"status": "success", "rows": result['rows']}
     except Exception as e:
-        print(f" Generation Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- PHASE 2/3: AI FORECASTING ---
 @app.get("/forecast/{user_id}")
 async def get_forecast(user_id: str):
-    """
-    The 'Brain' Endpoint:
-    1. Fetches your 842 records from Supabase
-    2. Trains the Prophet model
-    3. Calculates the 30-day insolvency risk
-    """
     try:
-        # Step 1: Prepare the data frames
         df = fetch_and_prepare_data(user_id)
-        
-        # Step 2: Run the Meta Prophet engine
+        forecast_results = generate_forecast_and_risk(df)
+        return {"status": "success", "data": forecast_results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI Engine Error: {str(e)}")
+
+@app.get("/advisor/{user_id}")
+async def get_ai_advice(user_id: str):
+    try:
+        # We need the forecast data to give to the advisor
+        df = fetch_and_prepare_data(user_id)
         forecast_results = generate_forecast_and_risk(df)
         
-        return {
-            "status": "success",
-            "data": forecast_results
-        }
+        # Now we call the advisor brain
+        advice = get_survival_plan(user_id, forecast_results)
+        return {"status": "success", "advice": advice}
     except Exception as e:
-        print(f" AI Engine Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"AI Engine Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"AI Advisor Error: {str(e)}")
