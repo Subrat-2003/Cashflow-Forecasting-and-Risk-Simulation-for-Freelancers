@@ -61,7 +61,7 @@ def generate_behavioral_history(user_id: str):
 
     best_attempt = []
     best_score = float('inf')
-    initial_liquidity = 60000.0
+    initial_liquidity = 2000.0
 
     # FIX 2: Timezone-aware UTC datetime — prevents silent misalignment with Supabase/Postgres
     # datetime.now() is timezone-naive → joins, aggregations, and dashboards can silently drift
@@ -122,7 +122,7 @@ def generate_behavioral_history(user_id: str):
                     continue
 
                 if rng.random() < prob:
-                    amt = 4500 * get_seasonality(tx_date)
+                    amt = 1500 * get_seasonality(tx_date)
                     delay = min(int(np_rng.gamma(2, 2 * stress)), 60)
                     actual_date = adjust_to_weekday(tx_date + timedelta(days=delay))
                     income_tx.append({
@@ -142,15 +142,15 @@ def generate_behavioral_history(user_id: str):
                     delay = min(int(np_rng.gamma(2, 5 * stress)), 60)
                     actual_date = adjust_to_weekday(tx_date + timedelta(days=delay))
                     income_tx.append({
-                        "user_id": user_id, "amount": round(rng.uniform(4000, 8000), 2),
+                        "user_id": user_id, "amount": round(rng.uniform(1000, 3000), 2),
                         "category": "Project Work", "client_name": "Enterprise Hub",
                         "expected_date": tx_date.isoformat(), "actual_date": actual_date.isoformat(),
                         "status": "cleared", "persona": "Milestone"
                     })
 
-        # Laggard clients: 80 ad-hoc attempts, high delay, frequent skips
-        # Increased from 60 → 80 to push natural output into the 600–700 record target range
-        for _ in range(80):
+        # Laggard clients: 120 ad-hoc attempts, high delay, frequent skips
+        # Increased from 60 → 120 to push natural output into the 600–900 record target range
+        for _ in range(120):
             tx_date = start_date + timedelta(days=rng.randint(0, 365))
             prob, stress = get_market_conditions(tx_date)
             if rng.random() < (prob * 0.8):
@@ -227,7 +227,7 @@ def generate_behavioral_history(user_id: str):
         for _ in range(5):
             shock_date = start_date + timedelta(days=rng.randint(30, 330))
             transactions.append({
-                "user_id": user_id, "amount": -round(rng.uniform(3000, 8000), 2),
+                "user_id": user_id, "amount": -round(rng.uniform(40000, 60000), 2),
                 "category": "Shock", "client_name": "Emergency",
                 "expected_date": shock_date.isoformat(),
                 "actual_date": adjust_to_weekday(shock_date).isoformat(),
@@ -236,8 +236,8 @@ def generate_behavioral_history(user_id: str):
 
         # Dataset size guard: 600–800 window
         # Lower bound (600): prevents sparse ML feature distributions
-        # Upper bound (800): prevents density drift across users at scale
-        if not (600 <= len(transactions) <= 800):
+        # Upper bound (900): prevents density drift across users at scale
+        if not (400 <= len(transactions) <= 1000):
             continue  # Discard and retry
 
         # FIX 3: Precompute _actual_dt on every record once — avoids repeated fromisoformat() during sort
@@ -391,25 +391,25 @@ def extract_features(transactions: list, user_id: str) -> dict:
         "credit_risk_score"   : credit_risk_score     # 0–100 composite (float)
     }
 
-    def upload_to_supabase(user_id: str):
+def upload_to_supabase(user_id: str):
     """
     This is the core execution function. 
     It runs the simulation and batch-inserts 600+ records into your DB.
     """
     # 1. Generate the raw behavioral history (The Simulation)
-        data = generate_behavioral_history(user_id)
+    data = generate_behavioral_history(user_id)
+
+    try:
+    # 2. Batch insert into Supabase (100 rows at a time for stability)
+            print(f" Attempting to upload {len(data)} records for user {user_id}...")
     
-            try:
-        # 2. Batch insert into Supabase (100 rows at a time for stability)
-                print(f"📡 Attempting to upload {len(data)} records for user {user_id}...")
-        
-                    for i in range(0, len(data), 100):
-                        batch = data[i : i + 100]
-                        supabase.table("transactions").insert(batch).execute()
-        
+            for i in range(0, len(data), 100):
+                batch = data[i : i + 100]
+                supabase.table("transactions").insert(batch).execute()
+    
             return {"status": "success", "rows": len(data)}
-        
-                except Exception as e:
-            print(f"❌ Database Upload Failed: {str(e)}")
-        # We re-raise the error so FastAPI's error handler can catch it
-            raise e
+    
+    except Exception as e:
+        print(f" Database Upload Failed: {str(e)}")
+    # We re-raise the error so FastAPI's error handler can catch it
+        raise e
