@@ -17,7 +17,7 @@ export default function TransactionTable() {
         .from('transactions')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(20)
+        .limit(570)
       
       if (error) {
         console.error('Supabase error:', error)
