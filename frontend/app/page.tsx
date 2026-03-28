@@ -2,6 +2,7 @@ import RiskGauge from './components/RiskGauge'
 import ScenarioSidebar from './components/ScenarioSidebar'
 import TransactionTable from './components/TransactionTable'
 import StatCards from './components/StatCards'
+import CashflowChart from './components/CashflowChart'
 
 export default function Home() {
   return (
@@ -22,6 +23,7 @@ export default function Home() {
         {/* Main content on right */}
         <div className="flex-1 flex flex-col gap-6">
           <RiskGauge score={72} />
+          <CashflowChart />
           <TransactionTable />
         </div>
       </div>
