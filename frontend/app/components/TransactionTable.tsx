@@ -18,7 +18,7 @@ export default function TransactionTable() {
         .select('*')
         .order('created_at', { ascending: false })
         .limit(570)
-      
+
       if (error) {
         console.error('Supabase error:', error)
       } else {
@@ -29,13 +29,39 @@ export default function TransactionTable() {
     fetchData()
   }, [])
 
+  const exportCSV = () => {
+    const headers = ['Client,Category,Amount,Status,Balance,Date']
+    const rows = transactions.map(t =>
+      `${t.client_name},${t.category},${t.amount},${t.status},${t.running_balance},${new Date(t.created_at).toLocaleDateString()}`
+    )
+    const csv = [...headers, ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'transactions.csv'
+    a.click()
+  }
+
   return (
     <div className="bg-gray-900 p-6 rounded-xl">
-      <h2 className="text-white text-xl font-bold mb-4">Recent Transactions</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-white text-xl font-bold">Recent Transactions</h2>
+        <button
+          onClick={exportCSV}
+          className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold px-4 py-2 rounded-lg"
+        >
+          📥 Export CSV
+        </button>
+      </div>
+
       {loading ? (
         <p className="text-gray-400">Loading...</p>
       ) : transactions.length === 0 ? (
-        <p className="text-gray-400">No transactions found.</p>
+        <div className="text-center py-12">
+          <p className="text-gray-400 text-lg mb-4">No transactions found!</p>
+          <p className="text-gray-500 text-sm">Add your first transaction using the ➕ button above.</p>
+        </div>
       ) : (
         <table className="w-full text-sm text-left text-gray-400">
           <thead>
