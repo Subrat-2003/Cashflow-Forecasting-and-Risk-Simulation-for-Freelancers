@@ -17,9 +17,15 @@ key = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
 # 1. Load the Specialists (Level 0)
-xgb_model = joblib.load('xgb_specialist.pkl')
-rf_model = joblib.load('rf_specialist.pkl')
-encoder = joblib.load('category_encoder.pkl')
+import os
+
+# Get the directory where this script is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Load the Specialists using the absolute path
+xgb_model = joblib.load(os.path.join(BASE_DIR, 'xgb_specialist.pkl'))
+rf_model = joblib.load(os.path.join(BASE_DIR, 'rf_specialist.pkl'))
+encoder = joblib.load(os.path.join(BASE_DIR, 'category_encoder.pkl'))
 
 def generate_future_forecast(days=30):
     print(f" Generating forecast for the next {days} days...")
