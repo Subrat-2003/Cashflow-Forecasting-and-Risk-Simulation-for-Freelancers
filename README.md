@@ -147,7 +147,7 @@ Five schema objects power the platform:
 
 | Layer | Stack |
 |---|---|
-| **ML / Backend** | Python 3.13 · Scikit-learn · XGBoost · Facebook Prophet · FastAPI |
+| **ML / Backend** | Python 3.13 · XGBoost · RandomForest · Scikit-learn (LabelEncoder) · FastAPI |
 | **Frontend** | Next.js 14 · TypeScript · Tailwind CSS · Recharts · SHA-256 (crypto.subtle) |
 | **Security / Data** | Supabase (PostgreSQL) · Row Level Security · SECURITY DEFINER Views |
 | **DevOps** | GitHub Actions (Scheduled CI/CD) |
