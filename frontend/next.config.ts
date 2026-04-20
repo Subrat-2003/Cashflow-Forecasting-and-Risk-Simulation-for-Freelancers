@@ -1,3 +1,15 @@
+import type { NextConfig } from 'next'
+
+const nextConfig: NextConfig = {
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+}
+
+export default nextConfig
 // import type { NextConfig } from "next";
 
 // const nextConfig: NextConfig = {};
@@ -45,19 +57,4 @@
 }
 
 //export default nextConfig
-import type { NextConfig } from 'next'
 
-const nextConfig: NextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,   // ← skips TS errors on Vercel build
-  },
-  eslint: {
-    ignoreDuringBuilds: true,  // ← skips ESLint errors too
-  },
-  env: {
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-    NEXT_PUBLIC_SUPABASE_KEY: process.env.NEXT_PUBLIC_SUPABASE_KEY ?? '',
-  },
-}
-
-export default nextConfig
