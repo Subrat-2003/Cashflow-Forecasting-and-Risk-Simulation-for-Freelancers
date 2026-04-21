@@ -124,11 +124,16 @@ export default function CashflowChart() {
           <Tooltip content={<CustomTooltip />} />
           <Legend
             wrapperStyle={{ color: '#9CA3AF', fontSize: 12 }}
-            formatter={(value) => ({
-              baseline:   'Baseline (Ensemble)',
-              'corridor': '±10% Risk Corridor',
-            }[value] ?? value)}
-          />
+            formatter={(value: string) => {
+           // Explicitly type the map to allow dynamic string indexing
+              const labelMap: Record<string, string> = {
+                baseline: 'Baseline (Ensemble)',
+                corridor: '±10% Risk Corridor',
+    };
+    return labelMap[value] ?? value; 
+  
+  }}
+/>
 
           {/* ── Stochastic risk corridor (shaded band) ──────────────────── */}
           {/* Recharts Area with a tuple dataKey renders the band between
