@@ -17,10 +17,7 @@ export default function StatCards() {
         .eq('user_id', USER_ID)
         .order('created_at', { ascending: true })
 
-      if (error) {
-        console.error('[StatCards] error:', error.message, error.code)
-        return
-      }
+      if (error) { console.error('[StatCards]', error.message); return }
       if (!data || data.length === 0) return
 
       const latest = data[data.length - 1]
@@ -47,7 +44,6 @@ export default function StatCards() {
         setRunway(90)
       }
     }
-
     fetchData()
   }, [])
 
@@ -57,26 +53,28 @@ export default function StatCards() {
     runway < 90     ? 'text-yellow-400' : 'text-green-400'
 
   return (
-    <div className="grid grid-cols-3 gap-4">
-      <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-        <p className="text-gray-400 text-sm">💰 Total Cash</p>
-        <h3 className="text-white text-2xl font-bold mt-1">
+    // 1 column on mobile, 3 on desktop
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mt-4">
+
+      <div className="bg-gray-900 p-4 md:p-6 rounded-xl border border-gray-800">
+        <p className="text-gray-400 text-xs md:text-sm">💰 Total Cash</p>
+        <h3 className="text-white text-xl md:text-2xl font-bold mt-1">
           ${totalCash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </h3>
         <p className="text-gray-600 text-xs mt-1">Current running balance</p>
       </div>
 
-      <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-        <p className="text-gray-400 text-sm">📄 Outstanding Receivables</p>
-        <h3 className="text-yellow-400 text-2xl font-bold mt-1">
+      <div className="bg-gray-900 p-4 md:p-6 rounded-xl border border-gray-800">
+        <p className="text-gray-400 text-xs md:text-sm">📄 Outstanding Receivables</p>
+        <h3 className="text-yellow-400 text-xl md:text-2xl font-bold mt-1">
           ${outstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </h3>
         <p className="text-gray-600 text-xs mt-1">Unpaid positive transactions</p>
       </div>
 
-      <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-        <p className="text-gray-400 text-sm">⏰ Survival Clock</p>
-        <h3 className={`text-2xl font-bold mt-1 ${runwayColor}`}>
+      <div className="bg-gray-900 p-4 md:p-6 rounded-xl border border-gray-800">
+        <p className="text-gray-400 text-xs md:text-sm">⏰ Survival Clock</p>
+        <h3 className={`text-xl md:text-2xl font-bold mt-1 ${runwayColor}`}>
           {runway === null ? 'Calculating…' : `${runway} days`}
         </h3>
         <p className="text-gray-500 text-xs mt-1">
@@ -85,6 +83,7 @@ export default function StatCards() {
            '✅ Cash position is safe'}
         </p>
       </div>
+
     </div>
   )
 }
