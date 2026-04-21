@@ -1,11 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  'https://wvcurewpkmvwxbkfchtk.supabase.co',
-  'sb_publishable_AKiMoepODBWXI9umP9FvKQ_YeuhtvBz'
-)
+import { supabase } from '@/lib/supabase'
 
 export default function CashflowWarning() {
   const [latePayments, setLatePayments] = useState<any[]>([])
@@ -14,7 +9,7 @@ export default function CashflowWarning() {
   useEffect(() => {
     const fetchData = async () => {
       const { data, error } = await supabase
-        .from('transactions')
+        .from('v_client_risk_status')
         .select('client_name, expected_date, actual_date, amount, persona')
         .order('expected_date', { ascending: true })
 
