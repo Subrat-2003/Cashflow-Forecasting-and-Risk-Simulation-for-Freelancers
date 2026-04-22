@@ -12,74 +12,44 @@ key = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
 def fetch_and_prepare_data(user_id: str):
-    """
-    Fetches the 800+ records you just generated and 
-    formats them for the Prophet AI model.
-    """
-    # 1. Pull data from Supabase
-    # We only need the date and the balance for forecasting
+    # 1. Pull data using your REAL schema names
     response = supabase.table("transactions") \
-        .select("actual_date, running_balance") \
+        .select("expected_date, amount") \
         .eq("user_id", user_id) \
-        .order("actual_date") \
+        .order("expected_date") \
         .execute()
     
     if not response.data:
-        raise ValueError("No data found for this user. Run the generator first.")
+        return pd.DataFrame()
 
-    # 2. Convert to Pandas DataFrame
+    # 2. Create DataFrame and map to Prophet names
     df = pd.DataFrame(response.data)
-
-    # 3. PROPHET REQUIREMENTS: 
-    # Must have columns named 'ds' and 'y'
-    # 'ds' must be datetime, 'y' must be numeric
-    df = df.rename(columns={
-        'actual_date': 'ds',
-        'running_balance': 'y'
-    })
+    df = df.rename(columns={'expected_date': 'ds', 'amount': 'y'})
     
-    # Clean the date strings to remove timezone offsets for Prophet
-    # We tell Pandas to use the smart ISO8601 parser which handles microseconds perfectly
+    # 3. CRITICAL FIX: Explicitly handle high-precision ISO8601 timestamps
+    # This handles the '.694362+00:00' part that caused the 500 error.
     df['ds'] = pd.to_datetime(df['ds'], format='ISO8601').dt.tz_localize(None)
-    df['y'] = pd.to_numeric(df['y'])
+    
+    # 4. Convert to Running Balance (Essential for AI trend forecasting)
+    df = df.sort_values('ds')
+    df['y'] = pd.to_numeric(df['y']).cumsum() 
 
     return df
 
 def generate_forecast_and_risk(df: pd.DataFrame):
-    """
-    Trains the AI model and predicts the next 30 days of cash flow.
-    Calculates a risk score based on the probability of hitting a ₹0 balance.
-    """
-    # 1. Initialize and Fit the Model
-    # interval_width=0.95 means we want a 95% confidence interval (Crucial for Risk)
+    # 1. Fit Model
+    # daily_seasonality=True is key for freelancer spending patterns
     model = Prophet(interval_width=0.95, daily_seasonality=True)
     model.fit(df)
 
-    # 2. Create Future Dates (30 Days)
+    # 2. Predict 30 Days
     future = model.make_future_dataframe(periods=30)
     forecast = model.predict(future)
 
-    # 3. Extract the Forecasted Period (The last 30 days)
-    # yhat = predicted balance, yhat_lower = worst case scenario
+    # 3. Format Output
     predictions = forecast.tail(30)[['ds', 'yhat', 'yhat_lower', 'yhat_upper']]
-
-    # 4. CALCULATE RISK SCORE (The 'AI' Secret Sauce)
-    # We look at the 'yhat_lower' (95% worst case). 
-    # If the worst-case scenario is below 0, that's a liquidity risk.
-    days_below_zero = predictions[predictions['yhat_lower'] < 0].shape[0]
     
-    # Risk Score = (Days at risk / 30 days) * 100
-    risk_score = round((days_below_zero / 30) * 100, 2)
-
-    # 5. Get the 'Danger Date'
-    danger_date = None
-    if days_below_zero > 0:
-        danger_date = predictions[predictions['yhat_lower'] < 0].iloc[0]['ds'].strftime('%Y-%m-%d')
-
     return {
         "forecast": predictions.to_dict(orient='records'),
-        "risk_score": risk_score,
-        "danger_date": danger_date,
-        "current_balance": round(df['y'].iloc[-1], 2),
-        "predicted_end_balance": round(predictions['yhat'].iloc[-1], 2)
+        "current_balance": round(df['y'].iloc[-1], 2)
     }
