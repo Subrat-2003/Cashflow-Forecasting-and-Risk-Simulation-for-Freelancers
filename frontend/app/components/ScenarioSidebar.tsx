@@ -1,96 +1,107 @@
-'use client'
-import { useState } from 'react'
+import React from 'react';
 
-export default function ScenarioSidebar({ onScenarioChange }: { onScenarioChange?: (scenario: string) => void }) {
-  const [latePayment, setLatePayment] = useState(0)
-  const [churn, setChurn] = useState(false)
-  const [expense, setExpense] = useState(1)
-  const [activeScenario, setActiveScenario] = useState('base')
+interface SidebarProps {
+  onScenarioChange: (scenario: string) => void;
+  onDelayChange: (days: number) => void;
+  onMultiplierChange: (mult: number) => void;
+  activeScenario: string;
+  delay: number;
+  multiplier: number;
+  loading: boolean;
+}
 
-  const handleScenario = (scenario: string) => {
-    setActiveScenario(scenario)
-    if (onScenarioChange) onScenarioChange(scenario)
-  }
+const ScenarioSidebar: React.FC<SidebarProps> = ({ 
+  onScenarioChange, 
+  onDelayChange, 
+  onMultiplierChange,
+  activeScenario, 
+  delay,
+  multiplier,
+  loading 
+}) => {
+  const scenarios = [
+    { id: 'Safe', label: 'Best Case', color: 'bg-green-600', desc: 'All payments arrive on time' },
+    { id: 'Stable', label: 'Laggard Lag', color: 'bg-yellow-600', desc: '+14 days for slow payers' },
+    { id: 'Critical', label: 'Total Freeze', color: 'bg-red-600', desc: '+30 days for all pending' },
+  ];
 
   return (
-    <div className="bg-gray-900 p-6 rounded-xl h-full">
-      <h2 className="text-white text-xl font-bold mb-6">Scenario Controls</h2>
-
-      {/* Stress Test Presets */}
-      <div className="mb-6">
-        <p className="text-gray-400 text-sm mb-3">🧪 Stress Test Presets</p>
-        <div className="flex flex-col gap-2">
-          <button
-            onClick={() => handleScenario('base')}
-            className={`p-3 rounded-lg text-sm font-bold text-left ${activeScenario === 'base' ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-300'}`}
-          >
-            ✅ Best Case
-            <p className="text-xs font-normal mt-1 opacity-70">All payments arrive on time</p>
-          </button>
-          <button
-            onClick={() => handleScenario('laggard')}
-            className={`p-3 rounded-lg text-sm font-bold text-left ${activeScenario === 'laggard' ? 'bg-yellow-600 text-white' : 'bg-gray-800 text-gray-300'}`}
-          >
-            ⚠️ Laggard Lag
-            <p className="text-xs font-normal mt-1 opacity-70">+14 days for slow payers</p>
-          </button>
-          <button
-            onClick={() => handleScenario('freeze')}
-            className={`p-3 rounded-lg text-sm font-bold text-left ${activeScenario === 'freeze' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-300'}`}
-          >
-            ❄️ Total Freeze
-            <p className="text-xs font-normal mt-1 opacity-70">+30 days for all pending</p>
-          </button>
+    <div className="p-4 space-y-8 bg-slate-900 text-white h-full border-r border-slate-800">
+      <section>
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-4">
+          🧪 Stress Test Presets
+        </h3>
+        <div className="space-y-3">
+          {scenarios.map((s) => (
+            <button
+              key={s.id}
+              disabled={loading}
+              onClick={() => onScenarioChange(s.id)}
+              className={`w-full p-3 rounded-lg text-left transition-all border ${
+                activeScenario === s.id 
+                ? `${s.color} border-transparent shadow-lg scale-[1.02]` 
+                : 'bg-slate-800 border-slate-700 hover:bg-slate-700 opacity-80'
+              } ${loading ? 'cursor-not-allowed grayscale' : ''}`}
+            >
+              <div className="font-bold flex items-center">
+                {activeScenario === s.id && <span className="mr-2">✓</span>}
+                {s.label}
+              </div>
+              <div className="text-[10px] opacity-70 mt-1">{s.desc}</div>
+            </button>
+          ))}
         </div>
-      </div>
+      </section>
 
-      {/* Late Payment Slider */}
-      <div className="mb-6">
-        <label className="text-gray-400 text-sm">Late Payment Delay</label>
-        <p className="text-white font-bold">{latePayment} days</p>
-        <input
-          type="range" min="0" max="90"
-          value={latePayment}
-          onChange={(e) => setLatePayment(Number(e.target.value))}
-          className="w-full mt-2"
-        />
-      </div>
+      <hr className="border-slate-800" />
 
-      {/* Client Churn Toggle */}
-      <div className="mb-6">
-        <label className="text-gray-400 text-sm">Biggest Client Leaves?</label>
-        <div className="mt-2">
-          <button
-            onClick={() => setChurn(!churn)}
-            className={`px-4 py-2 rounded-lg font-bold ${churn ? 'bg-red-500 text-white' : 'bg-gray-700 text-gray-300'}`}
-          >
-            {churn ? 'YES - Client Lost' : 'NO - Client Safe'}
-          </button>
+      <section className="space-y-6">
+        {/* LATE PAYMENT SLIDER */}
+        <div className="space-y-3">
+          <div className="flex justify-between text-xs">
+            <span className="text-slate-400 uppercase font-medium">Late Payment Delay</span>
+            <span className="text-blue-400 font-bold">{delay} days</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="60"
+            value={delay}
+            disabled={loading}
+            onChange={(e) => onDelayChange(Number(e.target.value))}
+            className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+          />
         </div>
-      </div>
 
-      {/* Expense Multiplier Slider */}
-      <div className="mb-6">
-        <label className="text-gray-400 text-sm">Expense Multiplier</label>
-        <p className="text-white font-bold">{expense}x</p>
-        <input
-          type="range" min="1" max="2" step="0.1"
-          value={expense}
-          onChange={(e) => setExpense(Number(e.target.value))}
-          className="w-full mt-2"
-        />
-      </div>
+        {/* EXPENSE MULTIPLIER SLIDER */}
+        <div className="space-y-3">
+          <div className="flex justify-between text-xs">
+            <span className="text-slate-400 uppercase font-medium">Expense Multiplier</span>
+            <span className="text-purple-400 font-bold">{multiplier}x</span>
+          </div>
+          <input
+            type="range"
+            min="0.5"
+            max="2"
+            step="0.1"
+            value={multiplier}
+            disabled={loading}
+            onChange={(e) => onMultiplierChange(Number(e.target.value))}
+            className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+          />
+        </div>
+      </section>
 
-      {/* Active Scenario Badge */}
-      <div className={`p-3 rounded-lg text-center text-sm font-bold ${
-        activeScenario === 'base' ? 'bg-green-900 text-green-300' :
-        activeScenario === 'laggard' ? 'bg-yellow-900 text-yellow-300' :
-        'bg-red-900 text-red-300'
-      }`}>
-        {activeScenario === 'base' ? '✅ Viewing: Best Case' :
-         activeScenario === 'laggard' ? '⚠️ Viewing: Laggard Lag' :
-         '❄️ Viewing: Total Freeze'}
+      {/* STATUS FOOTER */}
+      <div className="pt-4">
+        <div className={`text-center p-2 rounded text-xs font-bold transition-all ${
+          loading ? 'bg-blue-900 text-blue-200 animate-pulse' : 'bg-slate-800 text-green-400'
+        }`}>
+          {loading ? 'Prophet Engine Simulating...' : `Viewing: ${activeScenario}`}
+        </div>
       </div>
     </div>
-  )
-}
+  );
+};
+
+export default ScenarioSidebar;
