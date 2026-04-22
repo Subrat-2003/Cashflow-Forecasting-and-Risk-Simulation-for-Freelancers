@@ -47,3 +47,37 @@ export default function Dashboard() {
       </div>
 
       <StatCards currentBalance={data?.current_balance ?? 0} />
+
+      <div className="flex flex-col lg:flex-row gap-6 mt-6">
+        <div className="w-full lg:w-1/4">
+          <ScenarioSidebar 
+            onScenarioChange={handleScenarioChange}
+            activeScenario={activeScenario}
+            loading={loading}
+            delay={delay}
+            multiplier={multiplier}
+            onDelayChange={setDelay}
+            onMultiplierChange={setMultiplier}
+          />
+        </div>
+
+        <div className="flex-1 flex flex-col gap-6">
+          <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
+            <RiskGauge score={data?.score ?? 0} />
+          </div>
+          <div className="bg-gray-900 p-6 rounded-xl border border-gray-800 h-96">
+            <CashflowChart data={data?.data ?? []} loading={loading} />
+          </div>
+          <TransactionTable />
+        </div>
+      </div>
+
+      {showModal && (
+        <AddTransactionModal 
+          onClose={() => setShowModal(false)} 
+          onAdded={handleTransactionAdded} 
+        />
+      )}
+    </main>
+  );
+}
