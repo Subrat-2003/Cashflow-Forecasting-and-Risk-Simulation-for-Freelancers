@@ -14,7 +14,7 @@ export default function Dashboard() {
   const [showModal, setShowModal] = useState(false);
   const [activeScenario, setActiveScenario] = useState('Stable');
   
-  // Missing states that ScenarioSidebar requires
+  // State for sidebar parameters required by your ScenarioSidebar component
   const [delay, setDelay] = useState(0);
   const [multiplier, setMultiplier] = useState(1);
 
@@ -29,45 +29,11 @@ export default function Dashboard() {
     runSimulation(scenario); 
   };
 
+  // This is the function TypeScript is screaming for
+  const handleTransactionAdded = () => {
+    setShowModal(false);
+    runSimulation(activeScenario); 
+  };
+
   return (
-    <main className="bg-black min-h-screen p-3 md:p-6 text-white overflow-hidden font-sans">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold">💼 Risk Center</h1>
-        <button 
-          onClick={() => setShowModal(true)} 
-          className="bg-green-500 hover:bg-green-600 text-white font-bold p-2 px-6 rounded-lg transition-all"
-        >
-          ➕ Add
-        </button>
-      </div>
-
-      <StatCards currentBalance={data?.current_balance ?? 0} />
-
-      <div className="flex flex-col lg:flex-row gap-6 mt-6">
-        <div className="w-full lg:w-1/4">
-          <ScenarioSidebar 
-            onScenarioChange={handleScenarioChange}
-            activeScenario={activeScenario}
-            loading={loading}
-            delay={delay}
-            multiplier={multiplier}
-            onDelayChange={setDelay}
-            onMultiplierChange={setMultiplier}
-          />
-        </div>
-
-        <div className="flex-1 flex flex-col gap-6">
-          <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-            <RiskGauge score={data?.score ?? 0} />
-          </div>
-          <div className="bg-gray-900 p-6 rounded-xl border border-gray-800 h-96">
-            <CashflowChart data={data?.data ?? []} loading={loading} />
-          </div>
-          <TransactionTable />
-        </div>
-      </div>
-
-      {showModal && <AddTransactionModal onClose={() => setShowModal(false)} />}
-    </main>
-  );
-}
+    <main className="bg-black min-h
