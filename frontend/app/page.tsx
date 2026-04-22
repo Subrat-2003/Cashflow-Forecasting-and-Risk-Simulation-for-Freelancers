@@ -1,16 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-// Core Components - Adjusted paths to standard Next.js '@/' alias for reliability
-import ScenarioSidebar from '@/components/ScenarioSidebar';
-import CashflowChart from '@/components/CashflowChart';
-import RiskGauge from '@/components/RiskGauge';
-import CashflowWarning from '@/components/CashflowWarning';
-import StatCards from '@/components/StatCards';
-import TransactionTable from '@/components/TransactionTable';
-import AddTransactionModal from '@/components/AddTransactionModal';
+// Core Components - Adjusted paths to standard Next.js './' alias for reliability
+import ScenarioSidebar from './components/ScenarioSidebar';
+import CashflowChart from './components/CashflowChart';
+import RiskGauge from './components/RiskGauge';
+import CashflowWarning from './components/CashflowWarning';
+import StatCards from './components/StatCards';
+import TransactionTable from './components/TransactionTable';
+import AddTransactionModal from './components/AddTransactionModal';
 // Logic Hook
-import { useForecast } from '@/hooks/useForecast';
+import { useForecast } from './hooks/useForecast';
 
 export default function Dashboard() {
   // 1. Production Context: Real UUID from your Supabase
