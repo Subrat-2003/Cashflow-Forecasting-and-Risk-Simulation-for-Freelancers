@@ -2,6 +2,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.13-blue?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Latest-009688?style=flat-square&logo=fastapi&logoColor=white)
+![Prophet](https://img.shields.io/badge/Prophet-Latest-orange?style=flat-square&logo=facebook)
 ![XGBoost](https://img.shields.io/badge/XGBoost-Latest-orange?style=flat-square)
 ![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat-square&logo=next.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-Latest-3178C6?style=flat-square&logo=typescript&logoColor=white)
@@ -147,10 +148,10 @@ Five schema objects power the platform:
 
 | Layer | Stack |
 |---|---|
-| **ML / Backend** | Python 3.13 · XGBoost · RandomForest · Scikit-learn (LabelEncoder) · FastAPI |
+| **ML / Backend** | Python 3.13 · Facebook Prophet (Time-Series) · XGBoost · RandomForest · Scikit-learn (LabelEncoder) · FastAPI |
 | **Frontend** | Next.js 14 · TypeScript · Tailwind CSS · Recharts · SHA-256 (crypto.subtle) |
 | **Security / Data** | Supabase (PostgreSQL) · Row Level Security · SECURITY DEFINER Views |
-| **DevOps** | GitHub Actions (Scheduled CI/CD) |
+| **DevOps** | GitHub Actions (Scheduled CI/CD) | Docker (for Prophet build env)
 
 </div>
 
