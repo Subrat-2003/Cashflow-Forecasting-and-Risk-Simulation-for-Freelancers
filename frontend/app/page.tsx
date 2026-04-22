@@ -10,7 +10,7 @@ import StatCards from './components/StatCards';
 import TransactionTable from './components/TransactionTable';
 import AddTransactionModal from './components/AddTransactionModal';
 // Logic Hook
-import { useForecast } from './hooks/useForecast';
+import { useForecast } from '../hooks/useForecast';
 
 export default function Dashboard() {
   // 1. Production Context: Real UUID from your Supabase
