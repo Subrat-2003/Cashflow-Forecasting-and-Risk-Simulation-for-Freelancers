@@ -14,7 +14,7 @@ export default function Dashboard() {
   const [showModal, setShowModal] = useState(false);
   const [activeScenario, setActiveScenario] = useState('Stable');
   
-  // State for sidebar parameters required by your ScenarioSidebar component
+  // State for parameters required by your ScenarioSidebar component
   const [delay, setDelay] = useState(0);
   const [multiplier, setMultiplier] = useState(1);
 
@@ -29,11 +29,21 @@ export default function Dashboard() {
     runSimulation(scenario); 
   };
 
-  // This is the function TypeScript is screaming for
   const handleTransactionAdded = () => {
     setShowModal(false);
     runSimulation(activeScenario); 
   };
 
   return (
-    <main className="bg-black min-h
+    <main className="bg-black min-h-screen p-3 md:p-6 text-white overflow-hidden font-sans">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white">💼 Risk Center</h1>
+        <button 
+          onClick={() => setShowModal(true)} 
+          className="bg-green-500 hover:bg-green-600 text-white font-bold p-2 px-6 rounded-lg transition-all"
+        >
+          ➕ Add Transaction
+        </button>
+      </div>
+
+      <StatCards currentBalance={data?.current_balance ?? 0} />
