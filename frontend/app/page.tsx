@@ -13,30 +13,46 @@ export default function Dashboard() {
   const userId = "e6d6e60c-6890-4edf-94ea-7186e93a6064";
   const [showModal, setShowModal] = useState(false);
   const [activeScenario, setActiveScenario] = useState('Stable');
+  
+  // Missing states that ScenarioSidebar requires
+  const [delay, setDelay] = useState(0);
+  const [multiplier, setMultiplier] = useState(1);
+
   const { data, loading, runSimulation } = useForecast(userId);
 
   useEffect(() => {
     runSimulation('Stable');
   }, []);
 
+  const handleScenarioChange = (scenario: string) => {
+    setActiveScenario(scenario);
+    runSimulation(scenario); 
+  };
+
   return (
-    <main className="bg-black min-h-screen p-3 md:p-6 text-white">
+    <main className="bg-black min-h-screen p-3 md:p-6 text-white overflow-hidden font-sans">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold font-sans">💼 Risk Center</h1>
-        <button onClick={() => setShowModal(true)} className="bg-green-500 p-2 px-4 rounded-lg font-bold">
+        <h1 className="text-2xl md:text-3xl font-bold">💼 Risk Center</h1>
+        <button 
+          onClick={() => setShowModal(true)} 
+          className="bg-green-500 hover:bg-green-600 text-white font-bold p-2 px-6 rounded-lg transition-all"
+        >
           ➕ Add
         </button>
       </div>
 
-      {/* Passing the data safely with optional chaining */}
       <StatCards currentBalance={data?.current_balance ?? 0} />
 
       <div className="flex flex-col lg:flex-row gap-6 mt-6">
         <div className="w-full lg:w-1/4">
           <ScenarioSidebar 
-            onScenarioChange={(s) => { setActiveScenario(s); runSimulation(s); }}
+            onScenarioChange={handleScenarioChange}
             activeScenario={activeScenario}
             loading={loading}
+            delay={delay}
+            multiplier={multiplier}
+            onDelayChange={setDelay}
+            onMultiplierChange={setMultiplier}
           />
         </div>
 
