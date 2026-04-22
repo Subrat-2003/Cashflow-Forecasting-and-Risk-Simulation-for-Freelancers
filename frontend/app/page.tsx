@@ -8,7 +8,7 @@ import StatCards from './components/StatCards';
 import TransactionTable from './components/TransactionTable';
 import AddTransactionModal from './components/AddTransactionModal';
 import { useForecast } from '../hooks/useForecast';
-import { ShieldCheck, Zap, Activity, Cpu, TrendingDown, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Zap, Cpu, TrendingDown, AlertCircle } from 'lucide-react';
 
 export default function Dashboard() {
   const userId = "e6d6e60c-6890-4edf-94ea-7186e93a6064";
@@ -53,25 +53,13 @@ export default function Dashboard() {
         <div className="flex-1 bg-zinc-900/20 border border-zinc-800 p-4 rounded-2xl flex items-center gap-4 backdrop-blur-sm">
           <ShieldCheck className="text-green-500 shrink-0" size={18} />
           <div className="overflow-hidden">
-            <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest mb-1">Security Layer: SHA256 Integrity Shield</p>
-            <p className="text-[11px] font-mono text-green-500/80 truncate font-bold">
-              HASH_STATE: VALID // LEDGER_VERIFIED: {typeof window !== 'undefined' ? btoa(activeScenario).substring(0, 16) : '...'}
-            </p>
+             <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest mb-1">Security: SHA256 Integrity Shield</p>
+             <p className="text-[11px] font-mono text-green-500/80 truncate">HASH_STATE: VALID // LEDGER_VERIFIED</p>
           </div>
         </div>
         <div className="bg-zinc-900/20 border border-zinc-800 px-6 py-4 rounded-2xl flex items-center gap-3">
           <Cpu size={18} className="text-blue-500" />
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Ensemble Logic</p>
-            <p className="text-xs font-bold text-blue-400 font-mono">XGB(0.6) + RF(0.4)</p>
-          </div>
-        </div>
-        <div className="bg-green-500/10 border border-green-500/20 px-6 py-4 rounded-2xl flex items-center gap-3">
-          <Activity size={18} className="text-green-500 animate-pulse" />
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-widest text-green-700">Model Accuracy</p>
-            <p className="text-lg font-black text-green-500 leading-none">91.4%</p>
-          </div>
+          <p className="text-xs font-bold text-blue-400 font-mono">XGB(0.6) + RF(0.4)</p>
         </div>
       </div>
 
@@ -82,7 +70,7 @@ export default function Dashboard() {
         </div>
         <button 
           onClick={() => setShowModal(true)}
-          className="w-full md:w-auto bg-white text-black hover:bg-green-500 hover:text-white font-black px-12 py-5 rounded-full transition-all active:scale-95 shadow-2xl uppercase tracking-widest text-sm"
+          className="w-full md:w-auto bg-white text-black hover:bg-green-500 hover:text-white font-black px-12 py-5 rounded-full transition-all"
         >
           Log Transaction
         </button>
@@ -106,15 +94,9 @@ export default function Dashboard() {
 
         <div className="flex-1 space-y-10">
           <div className="bg-zinc-900/30 p-8 md:p-12 rounded-[3.5rem] border border-zinc-800/50 backdrop-blur-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-5">
-              <Zap size={120} />
-            </div>
             <div className="flex justify-between items-center mb-10 relative z-10">
-               <div>
-                 <h3 className="text-2xl font-black text-white italic tracking-tight">{activeScenario} Projection</h3>
-                 <p className="text-zinc-500 text-xs uppercase tracking-widest mt-1">30-Day Rolling Confidence Corridor</p>
-               </div>
-               {loading && <div className="bg-green-500 text-black px-4 py-1 rounded-full text-[10px] font-black animate-pulse uppercase">Simulating Ensemble...</div>}
+               <h3 className="text-2xl font-black text-white italic tracking-tight">{activeScenario} Projection</h3>
+               {loading && <div className="bg-green-500 text-black px-4 py-1 rounded-full text-[10px] font-black animate-pulse uppercase">Simulating...</div>}
             </div>
             <div className="h-[450px] relative z-10">
               <CashflowChart data={data?.data ?? []} loading={loading} />
@@ -122,13 +104,7 @@ export default function Dashboard() {
           </div>
           
           <StatCards currentBalance={data?.current_balance ?? 0} />
-          
-          <div className="bg-zinc-900/30 rounded-[3rem] border border-zinc-800/50 overflow-hidden backdrop-blur-md">
-            <div className="p-6 border-b border-zinc-800 bg-zinc-900/50">
-              <h4 className="text-xs font-black uppercase tracking-[0.3em] text-zinc-400">Verified Immutable Ledger</h4>
-            </div>
-            <TransactionTable />
-          </div>
+          <TransactionTable />
         </div>
       </div>
 
