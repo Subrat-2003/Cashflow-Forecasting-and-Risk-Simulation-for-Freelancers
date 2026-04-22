@@ -175,4 +175,3 @@ Five schema objects power the platform:
 **Freelancer Risk Center** — because gig income deserves the same analytical rigour as institutional finance.
 
 </div>
-
