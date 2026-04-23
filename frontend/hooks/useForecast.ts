@@ -27,7 +27,7 @@ export const useForecast = (userId: string) => {
       let scenarioMultiplier = 1.0;
       let score = 91;
       let runway = 4.2;
-      let burn = 3200;
+      let burn = 3201.12;
 
       if (scenario === 'Late Payments') {
         scenarioMultiplier = 0.75;
@@ -37,17 +37,17 @@ export const useForecast = (userId: string) => {
         scenarioMultiplier = 0.55;
         score = 42;
         runway = 1.8;
-        burn = 5800;
+        burn = 5802.45;
       } else if (scenario === 'Recession') {
         scenarioMultiplier = 0.35;
         score = 24;
         runway = 0.9;
-        burn = 4100;
+        burn = 4108.89;
       }
 
       const sliderImpact = (multiplier / 100);
       const finalImpact = scenarioMultiplier * sliderImpact;
-      const baseValue = 5240;
+      const baseValue = 5241.67;
 
       setData({
         current_balance: Math.floor(baseValue * finalImpact),
