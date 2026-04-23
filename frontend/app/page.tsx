@@ -35,7 +35,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-red-400 text-xs font-black uppercase tracking-widest">Projected Runway</p>
-            <p className="text-3xl font-black">{data?.runway ?? '---'} Months</p>
+            <p className="text-3xl font-black"> {data?.runway ?? '---'} Months</p>
           </div>
         </div>
         <div className="bg-orange-950/20 border border-orange-500/40 p-5 rounded-2xl flex items-center gap-5">
@@ -44,7 +44,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-orange-400 text-xs font-black uppercase tracking-widest">Monthly Burn Rate</p>
-            <p className="text-3xl font-black">${data?.burn_rate?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '---'}</p>
+            <p className="text-3xl font-black">${data?.burn_rate?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '---'}</p>
           </div>
         </div>
       </div>
