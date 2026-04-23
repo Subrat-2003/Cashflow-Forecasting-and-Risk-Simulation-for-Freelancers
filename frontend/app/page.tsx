@@ -35,7 +35,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-red-400 text-xs font-black uppercase tracking-widest">Projected Runway</p>
-            <p className="text-3xl font-black"> {data?.runway ?? '---'} Months</p>
+            <p className="text-3xl font-black">{data?.runway ?? '---'} Months</p>
           </div>
         </div>
         <div className="bg-orange-950/20 border border-orange-500/40 p-5 rounded-2xl flex items-center gap-5">
@@ -84,7 +84,7 @@ export default function Dashboard() {
             loading={loading}
             delay={delay}
             multiplier={multiplier}
-            onDelayChange={setDelay}
+            onDelayChange={setDelay}  
             onMultiplierChange={setMultiplier}
           />
           <div className="bg-zinc-900/30 p-10 rounded-[3rem] border border-zinc-800/50 backdrop-blur-xl shadow-inner">
@@ -103,7 +103,7 @@ export default function Dashboard() {
             </div>
           </div>
           
-          <StatCards currentBalance={data?.current_balance ?? 0} />
+          <StatCards currentBalance={data?.current_balance ?? 0} runway={data?.runway ?? 0} burnRate={data?.burn_rate ?? 0}/>
           <TransactionTable />
         </div>
       </div>
