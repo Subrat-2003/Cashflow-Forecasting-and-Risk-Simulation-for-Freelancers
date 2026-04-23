@@ -33,6 +33,7 @@ export const useForecast = (userId: string) => {
         scenarioMultiplier = 0.75;
         score = 65;
         runway = 3.1;
+        burn = 3218.54;
       } else if (scenario === 'High Burn') {
         scenarioMultiplier = 0.55;
         score = 42;
