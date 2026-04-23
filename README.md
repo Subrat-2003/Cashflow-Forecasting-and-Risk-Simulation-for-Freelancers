@@ -28,8 +28,8 @@ Traditional financial tools are built for static salary cycles. This platform is
 
 ## 📸 Dashboard Preview
 
-![Freelancer Risk Center Dashboard](assets/Dashboard.jpeg)
-![Freelancer Risk Center Dashboard](assets/Dashboard_2.jpeg)
+![Freelancer Risk Center Dashboard](assets/Dashboard.png)
+![Freelancer Risk Center Dashboard](assets/Dashboard_2.png)
 
 > **Live features visible:** Confidence Score gauge (72%), Scenario Controls (Best Case / Laggard Lag / Total Freeze), Survival Clock, Pending Invoices tracker, and one-click CSV export.
 
