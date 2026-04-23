@@ -53,7 +53,7 @@ export const useForecast = (userId: string) => {
       setData({
         current_balance: Math.floor(baseValue * finalImpact),
         score: Math.floor(score * sliderImpact), 
-        runway: Number(runway),,
+        runway: Number(runway),
         burn_rate: burn,
         data: [
           { date: 'Now', balance: baseValue },
