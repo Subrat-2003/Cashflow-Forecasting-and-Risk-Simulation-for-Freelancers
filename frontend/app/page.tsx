@@ -44,7 +44,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-orange-400 text-xs font-black uppercase tracking-widest">Monthly Burn Rate</p>
-            <p className="text-3xl font-black">${data?.burn_rate?.toLocaleString() ?? '---'}</p>
+            <p className="text-3xl font-black">${data?.burn_rate?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '---'}</p>
           </div>
         </div>
       </div>
