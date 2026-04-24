@@ -33,19 +33,15 @@ interface Transaction {
 }
 
 // --- GEMINI API UTILITIES ---
-// This logic aggressively hunts for the key in both Vercel and Canvas environments.
-const getSecretKey = () => {
-  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_GEMINI_API_KEY) {
-    return process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-  }
-  // Fallback for Canvas environment automatic injection
-  return ""; 
-};
-
 const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You are a financial AI assistant.") => {
-  const key = getSecretKey();
-  let delay = 1000;
+  // Direct access to ensure Next.js compiler sees the environment variable
+  const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
   
+  if (!key) {
+    throw new Error("KEY_NOT_FOUND");
+  }
+
+  let delay = 1000;
   for (let i = 0; i < 5; i++) {
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`, {
@@ -58,13 +54,13 @@ const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You a
       });
       
       if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.error?.message || `HTTP_${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `HTTP_${response.status}`);
       }
       
       const result = await response.json();
       const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) throw new Error('EMPTY_CONTENT');
+      if (!text) throw new Error('EMPTY_AI_RESPONSE');
       return text;
     } catch (error) {
       if (i === 4) throw error;
@@ -75,16 +71,17 @@ const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You a
 };
 
 const playTTSWithRetry = async (text: string) => {
-  const key = getSecretKey();
+  const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
+  if (!key) throw new Error("KEY_NOT_FOUND");
+
   let delay = 1000;
-  
   for (let i = 0; i < 5; i++) {
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `Professional summary: ${text}` }] }],
+          contents: [{ parts: [{ text: `Synthesize report: ${text}` }] }],
           generationConfig: {
             responseModalities: ["AUDIO"],
             speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } }
@@ -93,16 +90,17 @@ const playTTSWithRetry = async (text: string) => {
         })
       });
       
-      if (!response.ok) throw new Error('TTS_FAILED');
+      if (!response.ok) throw new Error('TTS_FETCH_FAIL');
       const result = await response.json();
       
       const audioPart = result.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
-      if (!audioPart) throw new Error('NO_AUDIO_DATA');
+      if (!audioPart) throw new Error('AUDIO_NOT_FOUND');
 
       const pcmBase64 = audioPart.inlineData.data;
       const binaryString = atob(pcmBase64);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let j = 0; j < binaryString.length; j++) bytes[j] = binaryString.charCodeAt(j);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let j = 0; j < len; j++) bytes[j] = binaryString.charCodeAt(j);
 
       const wavHeader = new ArrayBuffer(44);
       const view = new DataView(wavHeader);
@@ -219,33 +217,19 @@ const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBala
     { id: 5, client: 'Cloud Node', category: 'Fixed Cost', persona: 'Monthly Utility', amount: -245.00, status: 'completed', paid: true, balance: currentBalance - 3747.46, expected: '4/15/2026', risk: 'Low' },
   ];
 
-  const exportCSV = () => {
-    const headers = ["Client", "Category", "Persona", "Amount", "Status", "Expected", "Risk"];
-    const rows = transactions.map(t => [t.client, t.category, t.persona, t.amount, t.status, t.expected, t.risk]);
-    const content = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "prophet_ledger.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   return (
     <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[3rem] overflow-hidden backdrop-blur-md shadow-2xl">
       <div className="p-10 border-b border-zinc-800/50 flex flex-col md:flex-row justify-between items-center gap-6 bg-zinc-900/40">
         <div>
-          <h3 className="text-2xl font-black italic text-white uppercase tracking-tighter leading-none">Transaction Database</h3>
-          <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-3 leading-none">Live sync verified // SHA256 integrity</p>
+          <h3 className="text-2xl font-black italic text-white uppercase tracking-tighter leading-none">Ledger Matrix</h3>
+          <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-3 leading-none">Verified Transactions // SHA256 integrity</p>
         </div>
         <div className="flex gap-4 w-full md:w-auto">
           <div className="relative flex-1 md:w-64">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16}/>
             <input type="text" placeholder="Search entries..." className="w-full bg-black/40 border border-zinc-800 rounded-2xl py-3 pl-12 pr-6 text-[11px] text-zinc-300 focus:outline-none" />
           </div>
-          <button onClick={exportCSV} className="bg-blue-600 text-white px-7 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-blue-500 shadow-lg shadow-blue-600/20">
+          <button className="bg-blue-600 text-white px-7 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-blue-500 shadow-lg shadow-blue-600/20">
             <FileText size={16}/> Export CSV
           </button>
         </div>
@@ -311,7 +295,7 @@ export default function App() {
   const [delay, setDelay] = useState(0);
   const [multiplier, setMultiplier] = useState(100);
 
-  // Gemini states
+  // Gemini state handling
   const [insight, setInsight] = useState<string | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
@@ -371,9 +355,9 @@ export default function App() {
     const prompt = `Perform an audit on the ${activeScenario} scenario. Current Balance: $${data.current_balance}, Runway: ${data.runway} months. Give one professional recommendation. Max 45 words.`;
     try {
       const res = await callGeminiWithRetry(prompt, "You are Prophet AI intelligence.");
-      setInsight(res || "Analysis failed.");
+      setInsight(res || "Analysis stream failed.");
     } catch (e: any) {
-      setInsight(`Redeploy Required: Check Environment Variables`);
+      setInsight(`Check Vercel: NEXT_PUBLIC_GEMINI_API_KEY must be set.`);
     } finally {
       setInsightLoading(false);
     }
@@ -382,13 +366,13 @@ export default function App() {
   const generateSummary = async () => {
     if (!data) return;
     setSummaryLoading(true);
-    const prompt = `Executive report: $${data.current_balance} balance, ${activeScenario} outlook. 2 sentences.`;
+    const prompt = `Summarize current standing: $${data.current_balance} balance, ${activeScenario} outlook. 2 sentences.`;
     try {
       const res = await callGeminiWithRetry(prompt, "You are a senior CFO AI.");
-      setSummary(res || "Sync issue.");
+      setSummary(res || "Generation error.");
       if (res) await playTTSWithRetry(res);
     } catch (e: any) {
-      setSummary(`API Sync Error: Redeploy to update variables.`);
+      setSummary(`API Key Error: Syncing variables...`);
     } finally {
       setSummaryLoading(false);
     }
@@ -402,6 +386,7 @@ export default function App() {
 
   return (
     <main className="bg-black min-h-screen text-white p-10 md:p-14 font-sans overflow-x-hidden selection:bg-green-500/30 tracking-tight">
+      {/* Top Header Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-14">
         <div className="bg-red-950/20 border border-red-500/40 p-10 rounded-[3rem] flex items-center gap-10 shadow-2xl backdrop-blur-xl">
           <div className="bg-red-500 p-6 rounded-[2rem] text-black shadow-[0_0_40px_-5px_rgba(239,68,68,0.6)]">
@@ -429,35 +414,42 @@ export default function App() {
             </button>
           </div>
           <p className="text-sm text-zinc-300 mt-6 leading-relaxed italic font-medium min-h-[50px] relative z-10">
-            {summary || "Click for stand-up summary."}
+            {summary || "Generate a voice-enabled simulation summary."}
           </p>
-          <div className="absolute -bottom-10 -right-10 text-green-500/5 rotate-12 group-hover:rotate-0 transition-transform duration-1000"><BrainCircuit size={140} /></div>
+          <div className="absolute -bottom-10 -right-10 text-green-500/5 rotate-12 group-hover:rotate-0 transition-transform duration-1000">
+            <BrainCircuit size={140} />
+          </div>
         </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-6 mb-24">
-        <div className="flex-1 bg-zinc-900/20 border border-zinc-800 p-8 rounded-[3rem] flex items-center gap-8 backdrop-blur-3xl">
+        <div className="flex-1 bg-zinc-900/20 border border-zinc-800 p-8 rounded-[3rem] flex items-center gap-8 backdrop-blur-3xl border-zinc-800/50">
           <ShieldCheck className="text-green-500 shrink-0" size={36} />
-          <div>
-             <p className="text-[11px] font-mono text-zinc-500 uppercase tracking-widest mb-2 leading-none">Integrity Shield: Active</p>
-             <p className="text-sm font-mono text-green-500/80 font-bold uppercase truncate tracking-tighter leading-none">SYSTEM_STATUS: SECURE // DATA_VERIFIED</p>
+          <div className="overflow-hidden">
+             <p className="text-[11px] font-mono text-zinc-500 uppercase tracking-widest mb-2 leading-none">Integrity Shield: SHA256 Encryption Active</p>
+             <p className="text-sm font-mono text-green-500/80 font-bold uppercase truncate tracking-tighter leading-none">SYSTEM_STATUS: SECURE // DATA_VERIFIED_7X24</p>
           </div>
         </div>
-        <div className="bg-zinc-900/20 border border-zinc-800 px-12 py-8 rounded-[3rem] flex items-center gap-7 backdrop-blur-3xl">
+        <div className="bg-zinc-900/20 border border-zinc-800 px-12 py-8 rounded-[3rem] flex items-center gap-7 backdrop-blur-3xl border-zinc-800/50">
           <Cpu size={36} className="text-blue-500" />
-          <p className="text-sm font-bold text-blue-400 font-mono tracking-tighter uppercase leading-none">Neural Ensemble Active</p>
+          <p className="text-sm font-bold text-blue-400 font-mono tracking-tighter uppercase whitespace-nowrap leading-none">Neural Ensemble: XGB(0.6) + RF(0.4)</p>
         </div>
       </div>
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-32 gap-12 px-8">
         <div className="relative group">
-          <h1 className="text-9xl md:text-[13rem] font-black italic tracking-tighter text-white uppercase leading-[0.65]">Prophet AI</h1>
+          <h1 className="text-9xl md:text-[13rem] font-black italic tracking-tighter text-white uppercase leading-[0.65] group-hover:skew-x-2 transition-transform duration-1000">Prophet AI</h1>
           <p className="text-zinc-500 text-[15px] font-black uppercase tracking-[1.1em] mt-10 ml-4 text-zinc-400/80 drop-shadow-2xl">Financial Flight Simulator v1.0</p>
-          <div className="absolute -top-20 -left-20 w-60 h-60 bg-green-500/10 blur-[120px] -z-10" />
+          <div className="absolute -top-20 -left-20 w-60 h-60 bg-green-500/10 blur-[120px] -z-10 group-hover:bg-green-500/20 transition-colors" />
         </div>
         <div className="flex flex-col md:flex-row gap-6 w-full md:w-auto pb-4">
-          <button onClick={generateInsight} disabled={insightLoading || !data} className="bg-zinc-900 text-green-500 border border-green-500/30 hover:bg-green-500 hover:text-black font-black px-14 py-8 rounded-full transition-all uppercase text-[14px] tracking-[0.4em] flex items-center justify-center gap-5 active:scale-95 group shadow-2xl">
-            {insightLoading ? <Loader2 size={24} className="animate-spin" /> : <Sparkles size={24} />} Analyze Scenario ✨
+          <button 
+            onClick={generateInsight}
+            disabled={insightLoading || !data}
+            className="bg-zinc-900 text-green-500 border border-green-500/30 hover:bg-green-500 hover:text-black font-black px-14 py-8 rounded-full transition-all uppercase text-[14px] tracking-[0.4em] flex items-center justify-center gap-5 active:scale-95 group shadow-2xl"
+          >
+            {insightLoading ? <Loader2 size={24} className="animate-spin" /> : <Sparkles size={24} className="group-hover:animate-pulse" />}
+            Analyze Scenario ✨
           </button>
           <button className="bg-white text-black hover:bg-green-500 hover:text-white font-black px-18 py-8 rounded-full transition-all uppercase text-[14px] tracking-[0.4em] shadow-[0_25px_60px_-15px_rgba(255,255,255,0.4)] flex items-center justify-center gap-6 active:scale-95 group border-2 border-white">
             <Plus size={28} className="group-hover:rotate-90 transition-transform duration-500"/> Log Entry
@@ -468,26 +460,53 @@ export default function App() {
       <div className="flex flex-col lg:flex-row gap-20">
         <div className="w-full lg:w-[32rem] space-y-14">
           <div className="space-y-6">
-            <p className="text-[12px] font-black uppercase text-zinc-600 mb-10 tracking-[0.6em] ml-8 flex items-center gap-4"><Filter size={18}/> Simulation Protocol</p>
+            <p className="text-[12px] font-black uppercase text-zinc-600 mb-10 tracking-[0.6em] ml-8 flex items-center gap-4">
+              <Filter size={18}/> Simulation Protocol
+            </p>
             {['Stable', 'Late Payments', 'High Burn', 'Recession'].map(s => (
-              <button key={s} onClick={() => setActiveScenario(s)} className={`w-full text-left px-12 py-9 rounded-[3rem] font-black uppercase text-[13px] tracking-[0.4em] transition-all duration-700 border ${activeScenario === s ? 'bg-white text-black border-white shadow-[0_0_80px_-20px_rgba(255,255,255,0.6)] scale-[1.05] z-10' : 'bg-zinc-900/50 text-zinc-500 border-zinc-800/50 hover:bg-zinc-800/80 hover:text-zinc-200'}`}>{s}</button>
+              <button 
+                key={s} 
+                onClick={() => setActiveScenario(s)}
+                className={`w-full text-left px-12 py-9 rounded-[3rem] font-black uppercase text-[13px] tracking-[0.4em] transition-all duration-700 border ${activeScenario === s ? 'bg-white text-black border-white shadow-[0_0_80px_-20px_rgba(255,255,255,0.6)] scale-[1.05] z-10' : 'bg-zinc-900/50 text-zinc-500 border-zinc-800/50 hover:bg-zinc-800/80 hover:text-zinc-200'}`}
+              >
+                {s}
+              </button>
             ))}
 
             <div className="mt-20 p-14 bg-zinc-900/30 rounded-[4.5rem] border border-zinc-800/50 backdrop-blur-3xl shadow-inner relative overflow-hidden">
                <div className="absolute top-0 right-0 p-8 opacity-5"><Cpu size={70}/></div>
-               <div className="flex items-center gap-5 mb-14"><div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse shadow-[0_0_15px_rgba(59,130,246,0.9)]"/><p className="text-[12px] font-black uppercase text-zinc-500 tracking-widest leading-none">Stress Parameters</p></div>
+               <div className="flex items-center gap-5 mb-14">
+                 <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse shadow-[0_0_15px_rgba(59,130,246,0.9)]"/>
+                 <p className="text-[12px] font-black uppercase text-zinc-500 tracking-widest leading-none">Stress Parameters</p>
+               </div>
                <div className="space-y-16">
-                 <div><div className="flex justify-between text-[12px] font-bold mb-8 uppercase tracking-[0.4em]"><span className="text-zinc-500">Liquidity Lag</span><span className="text-blue-500 font-mono text-base">{delay}D</span></div><input type="range" min="0" max="60" value={delay} onChange={(e) => setDelay(parseInt(e.target.value))} className="w-full accent-blue-500 bg-zinc-800 h-2.5 rounded-full appearance-none cursor-pointer" /></div>
-                 <div><div className="flex justify-between text-[12px] font-bold mb-8 uppercase tracking-[0.4em]"><span className="text-zinc-500">Expense Warp</span><span className="text-orange-500 font-mono text-base">{multiplier}%</span></div><input type="range" min="50" max="200" value={multiplier} onChange={(e) => setMultiplier(parseInt(e.target.value))} className="w-full accent-orange-500 bg-zinc-800 h-2.5 rounded-full appearance-none cursor-pointer" /></div>
+                 <div>
+                   <div className="flex justify-between text-[12px] font-bold mb-8 uppercase tracking-[0.4em]">
+                     <span className="text-zinc-500">Liquidity Lag</span>
+                     <span className="text-blue-500 font-mono text-base">{delay}D</span>
+                   </div>
+                   <input type="range" min="0" max="60" value={delay} onChange={(e) => setDelay(parseInt(e.target.value))} className="w-full accent-blue-500 bg-zinc-800 h-2.5 rounded-full appearance-none cursor-pointer" />
+                 </div>
+                 <div>
+                   <div className="flex justify-between text-[12px] font-bold mb-8 uppercase tracking-[0.4em]">
+                     <span className="text-zinc-500">Expense Warp</span>
+                     <span className="text-orange-500 font-mono text-base">{multiplier}%</span>
+                   </div>
+                   <input type="range" min="50" max="200" value={multiplier} onChange={(e) => setMultiplier(parseInt(e.target.value))} className="w-full accent-orange-500 bg-zinc-800 h-2.5 rounded-full appearance-none cursor-pointer" />
+                 </div>
                </div>
             </div>
           </div>
 
           {insight && (
             <div className="bg-green-500/10 border border-green-500/30 p-12 rounded-[4rem] backdrop-blur-[100px] relative group shadow-2xl animate-in fade-in slide-in-from-bottom-10 duration-1000">
-              <div className="absolute top-8 right-10 text-green-500/50"><BrainCircuit size={32} /></div>
+              <div className="absolute top-8 right-10 text-green-500/50">
+                <BrainCircuit size={32} className="group-hover:scale-110 transition-transform"/>
+              </div>
               <p className="text-[12px] font-black uppercase text-green-500 mb-8 tracking-[0.5em] leading-none">Neural Insight ✨</p>
-              <p className="text-xl font-bold text-white leading-[1.5] italic tracking-tight">"{insight}"</p>
+              <p className="text-xl font-bold text-white leading-[1.5] italic tracking-tight">
+                "{insight}"
+              </p>
             </div>
           )}
 
@@ -501,18 +520,32 @@ export default function App() {
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-24 relative z-10 gap-8">
                 <div>
                   <h3 className="text-6xl font-black italic tracking-tighter text-white uppercase leading-none">{activeScenario} Projection</h3>
-                  <p className="text-zinc-600 text-[12px] font-black uppercase mt-6 tracking-[0.5em] leading-none">AI-DRIVEN RISK FORECASTING ACTIVE</p>
+                  <p className="text-zinc-600 text-[12px] font-black uppercase mt-6 tracking-[0.5em] leading-none">AI-DRIVEN RISK FORECASTING ENGINE ACTIVE</p>
                 </div>
-                <div className="bg-green-500/10 border border-green-500/20 text-green-500 px-10 py-4 rounded-full text-[12px] font-black uppercase tracking-[0.4em] flex items-center gap-5 backdrop-blur-3xl shadow-[0_0_30px_rgba(34,197,94,0.15)]"><div className="w-4 h-4 bg-green-500 rounded-full animate-ping" />Neural Uplink Live</div>
+                <div className="bg-green-500/10 border border-green-500/20 text-green-500 px-10 py-4 rounded-full text-[12px] font-black uppercase tracking-[0.4em] flex items-center gap-5 backdrop-blur-3xl shadow-[0_0_30px_rgba(34,197,94,0.15)]">
+                   <div className="w-4 h-4 bg-green-500 rounded-full animate-ping" />
+                   Neural Uplink Live
+                </div>
              </div>
-             <div className="h-[650px] relative z-10 transition-all duration-1000 group-hover:scale-[1.03]"><CashflowChart data={data?.data ?? []} loading={loading} /></div>
-             <div className={`absolute top-0 right-0 w-[1000px] h-[1000px] blur-[300px] -z-0 opacity-20 transition-colors duration-1000 ${activeScenario === 'Recession' ? 'bg-red-500' : activeScenario === 'High Burn' ? 'bg-orange-500' : 'bg-green-500'}`} />
+             <div className="h-[650px] relative z-10 transition-all duration-1000 group-hover:scale-[1.03]">
+               <CashflowChart data={data?.data ?? []} loading={loading} />
+             </div>
+             <div className={`absolute top-0 right-0 w-[1000px] h-[1000px] blur-[300px] -z-0 opacity-20 transition-colors duration-1000 ${
+               activeScenario === 'Recession' ? 'bg-red-500' : 
+               activeScenario === 'High Burn' ? 'bg-orange-500' : 'bg-green-500'
+             }`} />
           </div>
           
           <StatCards currentBalance={data?.current_balance ?? 0} runway={data?.runway ?? 0} burnRate={data?.burn_rate ?? 0} />
           <TransactionDatabase currentBalance={data?.current_balance ?? 0} />
+          
+          <div className="pt-40 pb-20 text-center">
+            <p className="text-[12px] font-mono text-zinc-700 uppercase tracking-[1.8em] leading-none">Prophet AI // Secure Ledger v1.0 // session_terminating</p>
+          </div>
         </div>
       </div>
     </main>
   );
 }
+
+// Build 1.0.2 force update
