@@ -33,10 +33,9 @@ interface Transaction {
 }
 
 // --- GEMINI API UTILITIES ---
-/** * CRITICAL: Vercel requires the NEXT_PUBLIC_ prefix to expose variables to the browser.
- * In your Vercel Dashboard, rename 'GEMINI_API_KEY' to 'NEXT_PUBLIC_GEMINI_API_KEY'.
- */
-const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || ""; 
+// This is the "Magic Link" between Vercel and this Canvas.
+// On Vercel, it uses your saved key. In this chat, it uses the injected one.
+const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
 
 const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You are a financial AI assistant.") => {
   let delay = 1000;
@@ -50,13 +49,15 @@ const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You a
           systemInstruction: { parts: [{ text: systemPrompt }] }
         })
       });
+      
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error?.message || `HTTP_${response.status}`);
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.error?.message || `HTTP_${response.status}`);
       }
+      
       const result = await response.json();
       const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) throw new Error('EMPTY_AI_RESPONSE');
+      if (!text) throw new Error('EMPTY_CONTENT');
       return text;
     } catch (error) {
       if (i === 4) throw error;
@@ -74,7 +75,7 @@ const playTTSWithRetry = async (text: string) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `Professional statement: ${text}` }] }],
+          contents: [{ parts: [{ text: `Professional standing: ${text}` }] }],
           generationConfig: {
             responseModalities: ["AUDIO"],
             speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } }
@@ -82,11 +83,12 @@ const playTTSWithRetry = async (text: string) => {
           model: "gemini-2.5-flash-preview-tts"
         })
       });
-      if (!response.ok) throw new Error(`TTS_HTTP_${response.status}`);
+      
+      if (!response.ok) throw new Error('TTS_FAILED');
       const result = await response.json();
       
       const audioPart = result.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
-      if (!audioPart) throw new Error('AUDIO_PART_MISSING');
+      if (!audioPart) throw new Error('NO_AUDIO_DATA');
 
       const pcmBase64 = audioPart.inlineData.data;
       const binaryString = atob(pcmBase64);
@@ -202,26 +204,12 @@ const CashflowChart: React.FC<{ data: any[]; loading: boolean }> = ({ data, load
 
 const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBalance }) => {
   const transactions: Transaction[] = [
-    { id: 1, client: 'Digital Pulse', category: 'Milestone', persona: 'Long-term Enterprise', amount: 1326.45, status: 'pending', paid: 'partial', balance: currentBalance, expected: '5/1/2026', risk: 'Low' },
-    { id: 2, client: 'SteadyState Media', category: 'Retainer', persona: 'Mid-market SaaS', amount: 1370.18, status: 'pending', paid: false, balance: currentBalance - 1326.45, expected: '5/7/2026', risk: 'Medium' },
-    { id: 3, client: 'Ops Vendor', category: 'Daily Expense', persona: 'Operating Infra', amount: -50.83, status: 'cleared', paid: true, balance: currentBalance - 2696.63, expected: '4/23/2026', risk: 'Low' },
+    { id: 1, client: 'Digital Pulse', category: 'Milestone', persona: 'Enterprise Client', amount: 1326.45, status: 'pending', paid: 'partial', balance: currentBalance, expected: '5/1/2026', risk: 'Low' },
+    { id: 2, client: 'SteadyState Media', category: 'Retainer', persona: 'Mid-Market SaaS', amount: 1370.18, status: 'pending', paid: false, balance: currentBalance - 1326.45, expected: '5/7/2026', risk: 'Medium' },
+    { id: 3, client: 'Ops Vendor', category: 'Operating Exp', persona: 'Cloud Infrastructure', amount: -50.83, status: 'cleared', paid: true, balance: currentBalance - 2696.63, expected: '4/23/2026', risk: 'Low' },
     { id: 4, client: 'Test Client Alpha', category: 'Milestone', persona: 'New Acquisition', amount: 1000.00, status: 'projected', paid: false, balance: currentBalance - 2747.46, expected: '6/15/2026', risk: 'High' },
     { id: 5, client: 'Cloud Node', category: 'Fixed Cost', persona: 'Monthly Utility', amount: -245.00, status: 'completed', paid: true, balance: currentBalance - 3747.46, expected: '4/15/2026', risk: 'Low' },
   ];
-
-  const exportCSV = () => {
-    const headers = ["Client", "Category", "Persona", "Amount", "Status", "Expected", "Risk"];
-    const rows = transactions.map(t => [t.client, t.category, t.persona, t.amount, t.status, t.expected, t.risk]);
-    const content = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "prophet_ledger.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   return (
     <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[3rem] overflow-hidden backdrop-blur-md shadow-2xl">
@@ -233,9 +221,9 @@ const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBala
         <div className="flex gap-4 w-full md:w-auto">
           <div className="relative flex-1 md:w-64">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16}/>
-            <input type="text" placeholder="Search entries..." className="w-full bg-black/40 border border-zinc-800 rounded-2xl py-3 pl-12 pr-6 text-[11px] text-zinc-300 focus:outline-none focus:border-green-500/50 transition-colors" />
+            <input type="text" placeholder="Search entries..." className="w-full bg-black/40 border border-zinc-800 rounded-2xl py-3 pl-12 pr-6 text-[11px] text-zinc-300 focus:outline-none" />
           </div>
-          <button onClick={exportCSV} className="bg-blue-600 text-white px-7 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-blue-500 transition-all active:scale-95 shadow-lg shadow-blue-600/20">
+          <button className="bg-blue-600 text-white px-7 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-blue-500 shadow-lg shadow-blue-600/20">
             <FileText size={16}/> Export CSV
           </button>
         </div>
@@ -266,28 +254,22 @@ const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBala
                 </td>
                 <td className="px-10 py-6 text-center">
                   <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase inline-flex items-center gap-1.5 ${
-                    tx.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' : 
-                    tx.status === 'completed' || tx.status === 'cleared' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-zinc-800 text-zinc-500'
+                    tx.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-green-500/10 text-green-500'
                   }`}>
-                    {tx.status === 'completed' || tx.status === 'cleared' ? <CheckCircle2 size={10}/> : <Clock size={10}/>}
+                    {tx.status === 'pending' ? <Clock size={10}/> : <CheckCircle2 size={10}/>}
                     {tx.status}
                   </span>
                 </td>
                 <td className="px-10 py-6 text-center">
                    <div className="flex justify-center">
-                     {tx.paid === true ? <CheckCircle2 size={18} className="text-green-500"/> : 
-                      tx.paid === 'partial' ? <Hourglass size={18} className="text-yellow-500"/> : 
-                      <Clock size={18} className="text-zinc-700"/>}
+                     {tx.paid === true ? <CheckCircle2 size={18} className="text-green-500"/> : <Clock size={18} className="text-zinc-700"/>}
                    </div>
                 </td>
-                <td className="px-10 py-6 text-right text-[11px] font-mono text-zinc-400">
-                  ${tx.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </td>
-                <td className="px-10 py-6 text-[10px] text-zinc-600 font-mono tracking-tighter whitespace-nowrap">{tx.expected}</td>
+                <td className="px-10 py-6 text-right text-[11px] font-mono text-zinc-400">${tx.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                <td className="px-10 py-6 text-[10px] text-zinc-600 font-mono">{tx.expected}</td>
                 <td className="px-10 py-6">
                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${
-                     tx.risk === 'High' ? 'text-red-500 border-red-500/30 bg-red-500/5' : 
-                     tx.risk === 'Medium' ? 'text-yellow-500 border-yellow-500/30 bg-yellow-500/5' : 'text-green-500 border-green-500/30 bg-green-500/5'
+                     tx.risk === 'High' ? 'text-red-500 border-red-500/30' : 'text-green-500 border-green-500/30'
                    }`}>{tx.risk}</span>
                 </td>
               </tr>
@@ -307,7 +289,7 @@ export default function App() {
   const [delay, setDelay] = useState(0);
   const [multiplier, setMultiplier] = useState(100);
 
-  // Gemini states
+  // Gemini Features State
   const [insight, setInsight] = useState<string | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
@@ -364,11 +346,10 @@ export default function App() {
   const generateInsight = async () => {
     if (!data) return;
     setInsightLoading(true);
-    const prompt = `Perform a high-level audit of the ${activeScenario} scenario. Current Balance: $${data.current_balance}, Runway: ${data.runway} months. Give one ruthless, professional recommendation for a freelancer. Keep it under 50 words.`;
+    const prompt = `Audit scenario: ${activeScenario}. Bal: $${data.current_balance}, Runway: ${data.runway}mo. ONE ruthless professional advice for a freelancer. Max 45 words.`;
     try {
-      if (!apiKey) throw new Error("KEY_MISSING_V2");
-      const res = await callGeminiWithRetry(prompt, "You are Prophet AI, an aggressive financial auditor.");
-      setInsight(res || "Analysis stream failed.");
+      const res = await callGeminiWithRetry(prompt, "You are Prophet AI intelligence.");
+      setInsight(res || "Analysis failed.");
     } catch (e: any) {
       setInsight(`Check Vercel: NEXT_PUBLIC_GEMINI_API_KEY naming.`);
     } finally {
@@ -379,14 +360,13 @@ export default function App() {
   const generateSummary = async () => {
     if (!data) return;
     setSummaryLoading(true);
-    const prompt = `Summarize current standing: $${data.current_balance} balance, ${activeScenario} outlook. 2 professional sentences.`;
+    const prompt = `Report current state: $${data.current_balance} bal, ${activeScenario} outlook. 2 sentences.`;
     try {
-      if (!apiKey) throw new Error("KEY_MISSING_V2");
       const res = await callGeminiWithRetry(prompt, "You are a senior CFO AI.");
       setSummary(res || "Generation error.");
       if (res) await playTTSWithRetry(res);
     } catch (e: any) {
-      setSummary(`API Key Sync Error: Check Vercel Dashboard`);
+      setSummary(`API Key Sync Error: Redeploy Required`);
     } finally {
       setSummaryLoading(false);
     }
@@ -427,7 +407,7 @@ export default function App() {
             </button>
           </div>
           <p className="text-sm text-zinc-300 mt-6 leading-relaxed italic font-medium min-h-[50px] relative z-10">
-            {summary || "Generate a voice-enabled simulation summary."}
+            {summary || "Click voice icon for stand-up summary."}
           </p>
           <div className="absolute -bottom-10 -right-10 text-green-500/5 rotate-12 group-hover:rotate-0 transition-transform duration-1000">
             <BrainCircuit size={140} />
