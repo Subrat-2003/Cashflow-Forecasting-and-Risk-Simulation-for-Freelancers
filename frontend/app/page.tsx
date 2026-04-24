@@ -34,7 +34,13 @@ interface Transaction {
 
 // --- GEMINI API UTILITIES ---
 // Helper to get key directly from the environment to prevent build-time stripping
-const fetchKey = () => process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
+const fetchKey = () => {
+  try {
+    return process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
+  } catch (e) {
+    return "";
+  }
+};
 
 const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You are a financial AI assistant.") => {
   const key = fetchKey();
@@ -53,7 +59,9 @@ const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You a
       });
       if (!response.ok) throw new Error(`REQ_ERR_${response.status}`);
       const result = await response.json();
-      return result.candidates?.[0]?.content?.parts?.[0]?.text;
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error('EMPTY_CONTENT');
+      return text;
     } catch (error) {
       if (i === 4) throw error;
       await new Promise(r => setTimeout(r, delay));
@@ -132,7 +140,7 @@ const RiskGauge: React.FC<{ score: number }> = ({ score }) => {
         }`} />
       </div>
       <div className="mt-8 text-center">
-        <p className="text-[9px] font-mono text-zinc-600 uppercase font-bold tracking-widest leading-none mb-2">Status: {displayScore > 40 ? 'Stable Monitoring' : 'Critical Alert'}</p>
+        <p className="text-[9px] font-mono text-zinc-600 uppercase font-bold tracking-widest leading-none mb-2 text-zinc-400">Status: {displayScore > 40 ? 'Stable Monitoring' : 'Critical Alert'}</p>
         <p className="text-[8px] font-mono text-zinc-700 italic uppercase">Model_P_Final_Ensemble_Active</p>
       </div>
     </div>
@@ -143,9 +151,9 @@ const StatCards: React.FC<{ currentBalance: number; runway: number; burnRate: nu
   currentBalance, runway, burnRate 
 }) => {
   const stats = [
-    { name: 'Current Balance', value: `$${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, change: '+2.5%', color: 'text-green-500', icon: <ArrowUpRight size={14}/> },
-    { name: 'Projected Runway', value: `${runway} Months`, change: '-12 days', color: 'text-red-500', icon: <ArrowDownRight size={14}/> },
-    { name: 'Burn Rate', value: `$${burnRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, change: 'Stable', color: 'text-zinc-500', icon: null },
+    { name: 'Current Balance', value: `$${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, change: '+2.5%', color: 'text-green-500', type: 'balance' },
+    { name: 'Projected Runway', value: `${runway} Months`, change: '-12 days', color: 'text-red-500', type: 'runway' },
+    { name: 'Burn Rate', value: `$${burnRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, change: 'Stable', color: 'text-zinc-500', type: 'burn' },
   ];
 
   return (
@@ -155,7 +163,9 @@ const StatCards: React.FC<{ currentBalance: number; runway: number; burnRate: nu
           <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest leading-none mb-3">{item.name}</p>
           <p className="text-3xl font-black text-white italic tracking-tight group-hover:text-green-400 transition-colors leading-none">{item.value}</p>
           <div className={`mt-4 text-[10px] font-black uppercase tracking-tighter flex items-center gap-1.5 ${item.color}`}>
-            {item.icon} {item.change} <span className="text-zinc-600 font-normal ml-1">vs last month</span>
+            {item.type === 'balance' && <ArrowUpRight size={14}/>}
+            {item.type === 'runway' && <ArrowDownRight size={14}/>}
+            {item.change} <span className="text-zinc-600 font-normal ml-1 text-[9px]">vs last month</span>
           </div>
         </div>
       ))}
@@ -204,19 +214,33 @@ const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBala
     { id: 5, client: 'Cloud Node', category: 'Fixed Cost', persona: 'Monthly Utility', amount: -245.00, status: 'completed', paid: true, balance: currentBalance - 3747.46, expected: '4/15/2026', risk: 'Low' },
   ];
 
+  const exportCSV = () => {
+    const headers = ["Client", "Category", "Persona", "Amount", "Status", "Expected", "Risk"];
+    const rows = transactions.map(t => [t.client, t.category, t.persona, t.amount, t.status, t.expected, t.risk]);
+    const content = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "prophet_ledger.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[3rem] overflow-hidden backdrop-blur-md shadow-2xl">
       <div className="p-10 border-b border-zinc-800/50 flex flex-col md:flex-row justify-between items-center gap-6 bg-zinc-900/40">
         <div>
           <h3 className="text-2xl font-black italic text-white uppercase tracking-tighter leading-none">Transaction Database</h3>
-          <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-3 leading-none">Live sync verified // SHA256 integrity</p>
+          <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-3 leading-none text-zinc-400">Live sync verified // SHA256 integrity</p>
         </div>
         <div className="flex gap-4 w-full md:w-auto">
           <div className="relative flex-1 md:w-64">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16}/>
             <input type="text" placeholder="Search entries..." className="w-full bg-black/40 border border-zinc-800 rounded-2xl py-3 pl-12 pr-6 text-[11px] text-zinc-300 focus:outline-none" />
           </div>
-          <button className="bg-blue-600 text-white px-7 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-blue-500 shadow-lg shadow-blue-600/20">
+          <button onClick={exportCSV} className="bg-blue-600 text-white px-7 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-blue-500 shadow-lg shadow-blue-600/20">
             <FileText size={16}/> Export CSV
           </button>
         </div>
@@ -282,14 +306,14 @@ export default function App() {
   const [delay, setDelay] = useState(0);
   const [multiplier, setMultiplier] = useState(100);
 
-  // Gemini state handling
+  // Gemini states
   const [insight, setInsight] = useState<string | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [hasKey, setHasKey] = useState(false);
 
-  // Check key on mount
+  // Check key on mount to show debugging icon
   useEffect(() => {
     setHasKey(fetchKey() !== "");
   }, []);
@@ -431,13 +455,13 @@ export default function App() {
         </div>
         <div className="bg-zinc-900/20 border border-zinc-800 px-12 py-8 rounded-[3rem] flex items-center gap-7 backdrop-blur-3xl border-zinc-800/50">
           <Cpu size={36} className="text-blue-500" />
-          <p className="text-sm font-bold text-blue-400 font-mono tracking-tighter uppercase whitespace-nowrap leading-none">Neural Ensemble Active</p>
+          <p className="text-sm font-bold text-blue-400 font-mono tracking-tighter uppercase whitespace-nowrap leading-none text-blue-400">Neural Ensemble Active</p>
         </div>
       </div>
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-32 gap-12 px-8">
         <div className="relative group">
-          <h1 className="text-9xl md:text-[13rem] font-black italic tracking-tighter text-white uppercase leading-[0.65]">Prophet AI</h1>
+          <h1 className="text-9xl md:text-[13rem] font-black italic tracking-tighter text-white uppercase leading-[0.65] group-hover:skew-x-2 transition-transform duration-1000">Prophet AI</h1>
           <p className="text-zinc-500 text-[15px] font-black uppercase tracking-[1.1em] mt-10 ml-4 text-zinc-400/80 drop-shadow-2xl">Financial Flight Simulator v1.0</p>
           <div className="absolute -top-20 -left-20 w-60 h-60 bg-green-500/10 blur-[120px] -z-10 group-hover:bg-green-500/20 transition-colors" />
         </div>
@@ -507,4 +531,4 @@ export default function App() {
   );
 }
 
-// Neural Sync Build: 1.0.3
+// Neural Sync Build: 1.0.4
