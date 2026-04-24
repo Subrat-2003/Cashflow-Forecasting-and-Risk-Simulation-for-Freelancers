@@ -7,7 +7,7 @@ import {
 import { 
   ShieldCheck, Cpu, TrendingDown, AlertCircle, Plus, FileText, Search, 
   CheckCircle2, Clock, Hourglass, ArrowUpRight, ArrowDownRight, Filter,
-  Sparkles, BrainCircuit, Volume2, Loader2, Wifi, WifiOff
+  Sparkles, BrainCircuit, Volume2, Wifi
 } from 'lucide-react';
 
 // --- TYPE DEFINITIONS ---
@@ -31,106 +31,6 @@ interface Transaction {
   expected: string;
   risk: 'Low' | 'Medium' | 'High';
 }
-
-// --- GEMINI API UTILITIES ---
-// This constant is injected by the Canvas environment.
-const internalApiKey = ""; 
-
-const getActiveKey = () => {
-  // 1. Check if Canvas injected a key
-  if (internalApiKey && internalApiKey.length > 0) return internalApiKey;
-  
-  // 2. Check if Vercel baked in a NEXT_PUBLIC key (Standard Next.js)
-  // Use a try-catch to prevent ReferenceError in non-node environments
-  try {
-    return process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-  } catch (e) {
-    return "";
-  }
-};
-
-const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You are a financial AI assistant.") => {
-  const key = getActiveKey();
-  if (!key) throw new Error("KEY_EMPTY");
-
-  let delay = 1000;
-  for (let i = 0; i < 5; i++) {
-    try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          systemInstruction: { parts: [{ text: systemPrompt }] }
-        })
-      });
-      if (!response.ok) throw new Error(`REQ_ERR_${response.status}`);
-      const result = await response.json();
-      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) throw new Error('EMPTY_CONTENT');
-      return text;
-    } catch (error) {
-      if (i === 4) throw error;
-      await new Promise(r => setTimeout(r, delay));
-      delay *= 2;
-    }
-  }
-};
-
-const playTTSWithRetry = async (text: string) => {
-  const key = getActiveKey();
-  if (!key) throw new Error("KEY_EMPTY");
-
-  let delay = 1000;
-  for (let i = 0; i < 5; i++) {
-    try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${key}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `Synthesize: ${text}` }] }],
-          generationConfig: {
-            responseModalities: ["AUDIO"],
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } }
-          },
-          model: "gemini-2.5-flash-preview-tts"
-        })
-      });
-      if (!response.ok) throw new Error('TTS_ERR');
-      const result = await response.json();
-      const pcmBase64 = result.candidates[0].content.parts[0].inlineData.data;
-      
-      const binaryString = atob(pcmBase64);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let j = 0; j < binaryString.length; j++) bytes[j] = binaryString.charCodeAt(j);
-      
-      const wavHeader = new ArrayBuffer(44);
-      const view = new DataView(wavHeader);
-      view.setUint32(0, 0x52494646, false); 
-      view.setUint32(4, 36 + bytes.length, true); 
-      view.setUint32(8, 0x57415645, false); 
-      view.setUint32(12, 0x666d7420, false); 
-      view.setUint32(16, 16, true); 
-      view.setUint16(20, 1, true); 
-      view.setUint16(22, 1, true); 
-      view.setUint32(24, 24000, true); 
-      view.setUint32(28, 48000, true); 
-      view.setUint16(32, 2, true); 
-      view.setUint16(34, 16, true); 
-      view.setUint32(36, 0x64617461, false); 
-      view.setUint32(40, bytes.length, true); 
-
-      const blob = new Blob([wavHeader, bytes], { type: 'audio/wav' });
-      const audio = new Audio(URL.createObjectURL(blob));
-      await audio.play();
-      return;
-    } catch (error) {
-      if (i === 4) throw error;
-      await new Promise(r => setTimeout(r, delay));
-      delay *= 2;
-    }
-  }
-};
 
 // --- SUB-COMPONENTS ---
 const RiskGauge: React.FC<{ score: number }> = ({ score }) => {
@@ -157,25 +57,29 @@ const RiskGauge: React.FC<{ score: number }> = ({ score }) => {
 const StatCards: React.FC<{ currentBalance: number; runway: number; burnRate: number }> = ({ 
   currentBalance, runway, burnRate 
 }) => {
-  const stats = [
-    { name: 'Current Balance', value: `$${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, change: '+2.5%', color: 'text-green-500', iconType: 'up' },
-    { name: 'Projected Runway', value: `${runway} Months`, change: '-12 days', color: 'text-red-500', iconType: 'down' },
-    { name: 'Burn Rate', value: `$${burnRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, change: 'Stable', color: 'text-zinc-500', iconType: 'none' },
-  ];
-
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {stats.map((item) => (
-        <div key={item.name} className="bg-zinc-900/40 border border-zinc-800 p-8 rounded-3xl backdrop-blur-md hover:border-zinc-700 transition-colors group">
-          <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest leading-none mb-3">{item.name}</p>
-          <p className="text-3xl font-black text-white italic tracking-tight group-hover:text-green-400 transition-colors leading-none">{item.value}</p>
-          <div className={`mt-4 text-[10px] font-black uppercase tracking-tighter flex items-center gap-1.5 ${item.color}`}>
-            {item.iconType === 'up' && <ArrowUpRight size={14}/>}
-            {item.iconType === 'down' && <ArrowDownRight size={14}/>}
-            {item.change} <span className="text-zinc-600 font-normal ml-1">vs last month</span>
-          </div>
+      <div className="bg-zinc-900/40 border border-zinc-800 p-8 rounded-3xl backdrop-blur-md hover:border-zinc-700 transition-colors group">
+        <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-3">Current Balance</p>
+        <p className="text-3xl font-black text-white italic tracking-tight group-hover:text-green-400 leading-none">${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+        <div className="mt-4 text-[10px] font-black uppercase tracking-tighter flex items-center gap-1.5 text-green-500">
+          <ArrowUpRight size={14}/> +2.5% <span className="text-zinc-600 font-normal">vs last month</span>
         </div>
-      ))}
+      </div>
+      <div className="bg-zinc-900/40 border border-zinc-800 p-8 rounded-3xl backdrop-blur-md hover:border-zinc-700 transition-colors group">
+        <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-3">Projected Runway</p>
+        <p className="text-3xl font-black text-white italic tracking-tight group-hover:text-red-400 leading-none">{runway} Months</p>
+        <div className="mt-4 text-[10px] font-black uppercase tracking-tighter flex items-center gap-1.5 text-red-500">
+          <ArrowDownRight size={14}/> -12 days <span className="text-zinc-600 font-normal">vs last month</span>
+        </div>
+      </div>
+      <div className="bg-zinc-900/40 border border-zinc-800 p-8 rounded-3xl backdrop-blur-md hover:border-zinc-700 transition-colors group">
+        <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-3">Burn Rate</p>
+        <p className="text-3xl font-black text-white italic tracking-tight group-hover:text-green-400 leading-none">${burnRate.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+        <div className="mt-4 text-[10px] font-black uppercase tracking-tighter flex items-center gap-1.5 text-zinc-500">
+          Stable <span className="text-zinc-600 font-normal ml-1">vs last month</span>
+        </div>
+      </div>
     </div>
   );
 };
@@ -184,7 +88,7 @@ const CashflowChart: React.FC<{ data: any[]; loading: boolean }> = ({ data, load
   if (loading) return (
     <div className="h-full w-full flex flex-col items-center justify-center space-y-4">
       <div className="text-green-500 animate-spin"><Cpu size={44}/></div>
-      <div className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.5em] animate-pulse">Running Neural Simulation...</div>
+      <div className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.5em] animate-pulse">Neural Simulation...</div>
     </div>
   );
   return (
@@ -202,7 +106,7 @@ const CashflowChart: React.FC<{ data: any[]; loading: boolean }> = ({ data, load
           <YAxis stroke="#3f3f46" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v.toLocaleString()}`} dx={-10} fontFamily="monospace" />
           <Tooltip 
             contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '16px' }}
-            itemStyle={{ color: '#22c55e', fontWeight: 'bold', fontSize: '12px' }}
+            itemStyle={{ color: '#22c55e', fontWeight: 'bold' }}
             formatter={(v: number) => [`$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Balance']}
           />
           <Area type="monotone" dataKey="balance" stroke="#22c55e" strokeWidth={5} fillOpacity={1} fill="url(#chartFill)" animationDuration={1500} />
@@ -225,15 +129,15 @@ const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBala
     <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[3rem] overflow-hidden backdrop-blur-md shadow-2xl">
       <div className="p-10 border-b border-zinc-800/50 flex flex-col md:flex-row justify-between items-center gap-6 bg-zinc-900/40">
         <div>
-          <h3 className="text-2xl font-black italic text-white uppercase tracking-tighter leading-none">Transaction Database</h3>
-          <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-3 leading-none">Live sync verified // SHA256 integrity</p>
+          <h3 className="text-2xl font-black italic text-white uppercase tracking-tighter leading-none">Recent Transaction</h3>
+          <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-3 leading-none text-zinc-400">Live sync verified // SHA256 integrity</p>
         </div>
         <div className="flex gap-4 w-full md:w-auto">
           <div className="relative flex-1 md:w-64">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16}/>
             <input type="text" placeholder="Search entries..." className="w-full bg-black/40 border border-zinc-800 rounded-2xl py-3 pl-12 pr-6 text-[11px] text-zinc-300 focus:outline-none" />
           </div>
-          <button className="bg-blue-600 text-white px-7 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-blue-500 shadow-lg shadow-blue-600/20">
+          <button className="bg-blue-600 text-white px-7 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-blue-500 shadow-lg">
             <FileText size={16}/> Export CSV
           </button>
         </div>
@@ -244,7 +148,6 @@ const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBala
             <tr className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-800/20 bg-zinc-900/20">
               <th className="px-10 py-6">Client</th>
               <th className="px-10 py-6">Category</th>
-              <th className="px-10 py-6">Persona</th>
               <th className="px-10 py-6 text-right">Amount</th>
               <th className="px-10 py-6 text-center">Status</th>
               <th className="px-10 py-6 text-center">Paid</th>
@@ -258,13 +161,12 @@ const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBala
               <tr key={tx.id} className="hover:bg-zinc-800/20 transition-colors group">
                 <td className="px-10 py-6 text-xs text-white font-bold">{tx.client}</td>
                 <td className="px-10 py-6 text-[10px] text-zinc-500 uppercase font-black">{tx.category}</td>
-                <td className="px-10 py-6 text-[10px] text-zinc-600 italic leading-none">{tx.persona}</td>
                 <td className={`px-10 py-6 text-xs text-right font-black ${tx.amount > 0 ? 'text-green-500' : 'text-red-500'}`}>
                   {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </td>
                 <td className="px-10 py-6 text-center">
                   <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase inline-flex items-center gap-1.5 ${
-                    tx.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' : 'bg-green-500/10 text-green-500'
+                    tx.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-green-500/10 text-green-500'
                   }`}>
                     {tx.status === 'pending' ? <Clock size={10}/> : <CheckCircle2 size={10}/>}
                     {tx.status}
@@ -298,18 +200,6 @@ export default function App() {
   const [activeScenario, setActiveScenario] = useState('Stable');
   const [delay, setDelay] = useState(0);
   const [multiplier, setMultiplier] = useState(100);
-
-  // Gemini state handling
-  const [insight, setInsight] = useState<string | null>(null);
-  const [insightLoading, setInsightLoading] = useState(false);
-  const [summary, setSummary] = useState<string | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [hasKey, setHasKey] = useState(false);
-
-  // Connection check
-  useEffect(() => {
-    setHasKey(getActiveKey() !== "");
-  }, []);
 
   const runSimulation = async (scenario: string, currentDelay: number, currentMultiplier: number) => {
     setLoading(true);
@@ -359,48 +249,13 @@ export default function App() {
     setLoading(false);
   };
 
-  const generateInsight = async () => {
-    if (!data) return;
-    setInsightLoading(true);
-    const prompt = `Audit the ${activeScenario} scenario. Current Balance: $${data.current_balance}, Runway: ${data.runway} months. Give one professional recommendation. Max 45 words.`;
-    try {
-      const res = await callGeminiWithRetry(prompt, "You are Prophet AI intelligence.");
-      setInsight(res || "Analysis failed.");
-    } catch (e: any) {
-      if (e.message === "KEY_EMPTY") {
-        setInsight("Neural Key missing. Push new code to GitHub to force Vercel build.");
-      } else {
-        setInsight("Strategic uplink timed out. Check your Vercel logs.");
-      }
-    } finally {
-      setInsightLoading(false);
-    }
-  };
-
-  const generateSummary = async () => {
-    if (!data) return;
-    setSummaryLoading(true);
-    const prompt = `Report standing: $${data.current_balance} balance, ${activeScenario} outlook. 2 sentences.`;
-    try {
-      const res = await callGeminiWithRetry(prompt, "You are a senior CFO AI.");
-      setSummary(res || "Generation error.");
-      if (res) await playTTSWithRetry(res);
-    } catch (e: any) {
-      setSummary("Uplink error: Hard build required to sync key.");
-    } finally {
-      setSummaryLoading(false);
-    }
-  };
-
   useEffect(() => { 
     runSimulation(activeScenario, delay, multiplier); 
-    setInsight(null);
-    setSummary(null);
   }, [activeScenario, delay, multiplier]);
 
   return (
     <main className="bg-black min-h-screen text-white p-10 md:p-14 font-sans overflow-x-hidden selection:bg-green-500/30 tracking-tight">
-      {/* Metrics Grid */}
+      {/* Top Indicators */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-14">
         <div className="bg-red-950/20 border border-red-500/40 p-10 rounded-[3rem] flex items-center gap-10 shadow-2xl backdrop-blur-xl">
           <div className="bg-red-500 p-6 rounded-[2rem] text-black shadow-[0_0_40px_-5px_rgba(239,68,68,0.6)]">
@@ -423,21 +278,21 @@ export default function App() {
         <div className="bg-zinc-900/40 border border-zinc-800 p-10 rounded-[3rem] flex flex-col justify-between shadow-2xl backdrop-blur-xl relative overflow-hidden group">
           <div className="flex justify-between items-center relative z-10">
             <p className="text-zinc-500 text-[11px] font-black uppercase tracking-[0.4em] leading-none text-zinc-500">AI Summary ✨</p>
-            <button onClick={generateSummary} disabled={summaryLoading || !data} className="text-green-500 hover:text-white transition-all active:scale-90 scale-125">
-              {summaryLoading ? <Loader2 size={24} className="animate-spin" /> : <Volume2 size={24} />}
+            <button className="text-green-500 hover:text-white transition-all active:scale-90 scale-125">
+              <Volume2 size={24} />
             </button>
           </div>
           <p className="text-sm text-zinc-300 mt-6 leading-relaxed italic font-medium min-h-[50px] relative z-10">
-            {summary || "Generate a voice-enabled simulation summary."}
+            Neural Uplink on standby. Simulation ready for deployment.
           </p>
           <div className="absolute top-2 right-12 opacity-50">
-             {hasKey ? <Wifi size={14} className="text-green-500"/> : <WifiOff size={14} className="text-red-500"/>}
+             <Wifi size={14} className="text-zinc-700"/>
           </div>
           <div className="absolute -bottom-10 -right-10 text-green-500/5 rotate-12 group-hover:rotate-0 transition-transform duration-1000"><BrainCircuit size={140} /></div>
         </div>
       </div>
 
-      {/* Engineering Bar */}
+      {/* Engineering Header */}
       <div className="flex flex-col md:flex-row gap-6 mb-24">
         <div className="flex-1 bg-zinc-900/20 border border-zinc-800 p-8 rounded-[3rem] flex items-center gap-8 backdrop-blur-3xl border-zinc-800/50">
           <ShieldCheck className="text-green-500 shrink-0" size={36} />
@@ -460,8 +315,8 @@ export default function App() {
           <div className="absolute -top-20 -left-20 w-60 h-60 bg-green-500/10 blur-[120px] -z-10 group-hover:bg-green-500/20 transition-colors" />
         </div>
         <div className="flex flex-col md:flex-row gap-6 w-full md:w-auto pb-4">
-          <button onClick={generateInsight} disabled={insightLoading || !data} className="bg-zinc-900 text-green-500 border border-green-500/30 hover:bg-green-500 hover:text-black font-black px-14 py-8 rounded-full transition-all uppercase text-[14px] tracking-[0.4em] flex items-center justify-center gap-5 active:scale-95 group shadow-2xl">
-            {insightLoading ? <Loader2 size={24} className="animate-spin" /> : <Sparkles size={24} />} Analyze Scenario ✨
+          <button className="bg-zinc-900 text-green-500 border border-green-500/30 hover:bg-green-500 hover:text-black font-black px-14 py-8 rounded-full transition-all uppercase text-[14px] tracking-[0.4em] flex items-center justify-center gap-5 active:scale-95 group shadow-2xl">
+            <Sparkles size={24} /> Analyze Scenario ✨
           </button>
           <button className="bg-white text-black hover:bg-green-500 hover:text-white font-black px-18 py-8 rounded-full transition-all uppercase text-[14px] tracking-[0.4em] shadow-[0_25px_60px_-15px_rgba(255,255,255,0.4)] flex items-center justify-center gap-6 active:scale-95 group border-2 border-white">
             <Plus size={28} className="group-hover:rotate-90 transition-transform duration-500"/> Log Entry
@@ -488,13 +343,11 @@ export default function App() {
             </div>
           </div>
 
-          {insight && (
-            <div className="bg-green-500/10 border border-green-500/30 p-12 rounded-[4rem] backdrop-blur-[100px] relative group shadow-2xl animate-in fade-in slide-in-from-bottom-10 duration-1000">
-              <div className="absolute top-8 right-10 text-green-500/50"><BrainCircuit size={32} className="group-hover:scale-110 transition-transform"/></div>
-              <p className="text-[12px] font-black uppercase text-green-500 mb-8 tracking-[0.5em] leading-none text-green-500">Neural Insight ✨</p>
-              <p className="text-xl font-bold text-white leading-[1.5] italic tracking-tight">"{insight}"</p>
-            </div>
-          )}
+          <div className="bg-green-500/10 border border-green-500/30 p-12 rounded-[4rem] backdrop-blur-[100px] relative group shadow-2xl">
+            <div className="absolute top-8 right-10 text-green-500/50"><BrainCircuit size={32} /></div>
+            <p className="text-[12px] font-black uppercase text-green-500 mb-8 tracking-[0.5em] leading-none text-green-500">Neural Insight ✨</p>
+            <p className="text-xl font-bold text-white leading-[1.5] italic tracking-tight">"Neural simulation calibrated. Awaiting uplink for deep-sector audit."</p>
+          </div>
 
           <div className="bg-zinc-900/20 p-16 rounded-[5rem] border border-zinc-800/50 backdrop-blur-3xl shadow-2xl">
              <RiskGauge score={data?.score ?? 0} />
@@ -526,4 +379,4 @@ export default function App() {
   );
 }
 
-// Neural Sync Build: 1.0.5
+// STABLE PRODUCTION BUILD: 1.0.6
