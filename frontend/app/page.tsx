@@ -35,7 +35,7 @@ interface Transaction {
 // --- GEMINI API UTILITIES ---
 const apiKey = ""; // API key provided by environment
 
-const callGemini = async (prompt: string, systemPrompt: string = "You are a financial AI assistant.") => {
+const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You are a financial AI assistant.") => {
   let delay = 1000;
   for (let i = 0; i < 5; i++) {
     try {
@@ -58,47 +58,67 @@ const callGemini = async (prompt: string, systemPrompt: string = "You are a fina
   }
 };
 
-const playTTS = async (text: string) => {
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: `Say in a professional, reassuring financial advisor tone: ${text}` }] }],
-        generationConfig: {
-          responseModalities: ["AUDIO"],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } }
-        },
-        model: "gemini-2.5-flash-preview-tts"
-      })
-    });
-    const result = await response.json();
-    const pcmBase64 = result.candidates[0].content.parts[0].inlineData.data;
-    
-    // PCM16 to WAV conversion utility
-    const sampleRate = 24000;
-    const pcmBuffer = Uint8Array.from(atob(pcmBase64), c => c.charCodeAt(0)).buffer;
-    const wavHeader = new ArrayBuffer(44);
-    const view = new DataView(wavHeader);
-    view.setUint32(0, 0x52494646, false); 
-    view.setUint32(4, 36 + pcmBuffer.byteLength, true); 
-    view.setUint32(8, 0x57415645, false); 
-    view.setUint32(12, 0x666d7420, false); 
-    view.setUint32(16, 16, true); 
-    view.setUint16(20, 1, true); 
-    view.setUint16(22, 1, true); 
-    view.setUint32(24, sampleRate, true); 
-    view.setUint32(28, sampleRate * 2, true); 
-    view.setUint16(32, 2, true); 
-    view.setUint16(34, 16, true); 
-    view.setUint32(36, 0x64617461, false); 
-    view.setUint32(40, pcmBuffer.byteLength, true); 
+const playTTSWithRetry = async (text: string) => {
+  let delay = 1000;
+  for (let i = 0; i < 5; i++) {
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `Say in a professional, reassuring financial advisor tone: ${text}` }] }],
+          generationConfig: {
+            responseModalities: ["AUDIO"],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } }
+          },
+          model: "gemini-2.5-flash-preview-tts"
+        })
+      });
+      if (!response.ok) throw new Error('TTS API request failed');
+      const result = await response.json();
+      
+      const part = result.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
+      if (!part) throw new Error('No audio data in response');
 
-    const blob = new Blob([wavHeader, pcmBuffer], { type: 'audio/wav' });
-    const audio = new Audio(URL.createObjectURL(blob));
-    audio.play();
-  } catch (e) {
-    console.error("TTS System Error", e);
+      const pcmBase64 = part.inlineData.data;
+      const mimeType = part.inlineData.mimeType || "audio/L16;rate=24000";
+      const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+      const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1]) : 24000;
+
+      // PCM16 to WAV conversion
+      const binaryString = atob(pcmBase64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let j = 0; j < len; j++) {
+        bytes[j] = binaryString.charCodeAt(j);
+      }
+      const pcmBuffer = bytes.buffer;
+
+      const wavHeader = new ArrayBuffer(44);
+      const view = new DataView(wavHeader);
+      view.setUint32(0, 0x52494646, false); 
+      view.setUint32(4, 36 + pcmBuffer.byteLength, true); 
+      view.setUint32(8, 0x57415645, false); 
+      view.setUint32(12, 0x666d7420, false); 
+      view.setUint32(16, 16, true); 
+      view.setUint16(20, 1, true); 
+      view.setUint16(22, 1, true); 
+      view.setUint32(24, sampleRate, true); 
+      view.setUint32(28, sampleRate * 2, true); 
+      view.setUint16(32, 2, true); 
+      view.setUint16(34, 16, true); 
+      view.setUint32(36, 0x64617461, false); 
+      view.setUint32(40, pcmBuffer.byteLength, true); 
+
+      const blob = new Blob([wavHeader, pcmBuffer], { type: 'audio/wav' });
+      const audio = new Audio(URL.createObjectURL(blob));
+      await audio.play();
+      return;
+    } catch (error) {
+      if (i === 4) throw error;
+      await new Promise(r => setTimeout(r, delay));
+      delay *= 2;
+    }
   }
 };
 
@@ -141,7 +161,7 @@ const StatCards: React.FC<{ currentBalance: number; runway: number; burnRate: nu
           <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest leading-none mb-3">{item.name}</p>
           <p className="text-3xl font-black text-white italic tracking-tight group-hover:text-green-400 transition-colors leading-none">{item.value}</p>
           <div className={`mt-4 text-[10px] font-black uppercase tracking-tighter flex items-center gap-1.5 ${item.color}`}>
-            {item.icon} {item.change} <span className="text-zinc-600 font-normal">vs last month</span>
+            {item.icon} {item.change} <span className="text-zinc-600 font-normal ml-1">vs last month</span>
           </div>
         </div>
       ))}
@@ -154,7 +174,7 @@ const CashflowChart: React.FC<{ data: any[]; loading: boolean }> = ({ data, load
   if (loading) return (
     <div className="h-full w-full flex flex-col items-center justify-center space-y-4">
       <div className="text-green-500 animate-spin"><Cpu size={40}/></div>
-      <div className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.5em] animate-pulse">Running Simulation...</div>
+      <div className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.5em] animate-pulse">Running Neural Simulation...</div>
     </div>
   );
   return (
@@ -171,9 +191,9 @@ const CashflowChart: React.FC<{ data: any[]; loading: boolean }> = ({ data, load
           <XAxis dataKey="date" stroke="#3f3f46" fontSize={10} tickLine={false} axisLine={false} dy={10} fontFamily="monospace" />
           <YAxis stroke="#3f3f46" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v.toLocaleString()}`} dx={-10} fontFamily="monospace" />
           <Tooltip 
-            contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}
-            itemStyle={{ color: '#22c55e', fontWeight: 'bold', fontSize: '12px' }}
-            formatter={(v: number) => [`$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Projected Balance']}
+            contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '16px' }}
+            itemStyle={{ color: '#22c55e', fontWeight: 'bold' }}
+            formatter={(v: number) => [`$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Balance']}
           />
           <Area type="monotone" dataKey="balance" stroke="#22c55e" strokeWidth={4} fillOpacity={1} fill="url(#chartFill)" animationDuration={1500} />
         </AreaChart>
@@ -211,7 +231,7 @@ const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBala
       <div className="p-10 border-b border-zinc-800/50 flex flex-col md:flex-row justify-between items-center gap-6 bg-zinc-900/40">
         <div>
           <h3 className="text-2xl font-black italic text-white uppercase tracking-tighter leading-none">Recent Transactions</h3>
-          <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-3">Live ledger sync with SHA256 integrity protocols</p>
+          <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-3 leading-none">Live ledger sync with SHA256 integrity protocols</p>
         </div>
         <div className="flex gap-4 w-full md:w-auto">
           <div className="relative flex-1 md:w-64">
@@ -307,7 +327,7 @@ export default function Dashboard() {
     let sMult = 1.0;
     let sScore = 91.4;
     let burnBase = 3201.12;
-    const baseValue = 13444.70; // Hardcoded for math integrity: Stable = 4.2 Mo baseline
+    const baseValue = 13444.70; // Baseline for 4.2 Mo integrity
 
     if (scenario === 'Late Payments') { sMult = 0.75; sScore = 65; burnBase = 3218.54; }
     else if (scenario === 'High Burn') { sMult = 0.55; sScore = 42; burnBase = 5802.45; }
@@ -351,12 +371,12 @@ export default function Dashboard() {
   const generateInsight = async () => {
     if (!data) return;
     setInsightLoading(true);
-    const prompt = `Analyze scenario: ${activeScenario}. Balance: $${data.current_balance}, Runway: ${data.runway} months, Burn: $${data.burn_rate}. One strategic move for a freelancer. Max 50 words.`;
+    const prompt = `Analyze scenario: ${activeScenario}. Balance: $${data.current_balance}, Runway: ${data.runway} months, Burn: $${data.burn_rate}. Provide one strategic, professional piece of advice. Max 50 words.`;
     try {
-      const res = await callGemini(prompt, "You are Prophet AI, a ruthless financial intelligence agent.");
-      setInsight(res || "Neural core offline.");
+      const res = await callGeminiWithRetry(prompt, "You are Prophet AI, a ruthless financial intelligence agent.");
+      setInsight(res || "Analysis failed.");
     } catch (e) {
-      setInsight("Strategic uplink failed.");
+      setInsight("Error connecting to neural uplink.");
     } finally {
       setInsightLoading(false);
     }
@@ -365,13 +385,13 @@ export default function Dashboard() {
   const generateSummary = async () => {
     if (!data) return;
     setSummaryLoading(true);
-    const prompt = `Professional executive summary. Balance: $${data.current_balance}. Outlook: ${activeScenario}. Runway: ${data.runway} months. Firm closing statement. 2 sentences.`;
+    const prompt = `Professional executive summary. Total Balance: $${data.current_balance}. Outlook: ${activeScenario}. Runway: ${data.runway} months. Be firm but reassuring. 2 sentences.`;
     try {
-      const res = await callGemini(prompt, "You are a senior CFO AI.");
+      const res = await callGeminiWithRetry(prompt, "You are a senior CFO AI.");
       setSummary(res || "Summary generation failed.");
-      if (res) playTTS(res);
+      if (res) await playTTSWithRetry(res);
     } catch (e) {
-      setSummary("Voice synthesis unavailable.");
+      setSummary("Error generating voice summary.");
     } finally {
       setSummaryLoading(false);
     }
@@ -445,7 +465,7 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-28 gap-10 px-6">
         <div className="relative group">
           <h1 className="text-9xl md:text-[12rem] font-black italic tracking-tighter text-white uppercase leading-[0.7] group-hover:skew-x-2 transition-transform duration-700">Prophet AI</h1>
-          <p className="text-zinc-500 text-[14px] font-black uppercase tracking-[1em] mt-8 ml-3 text-zinc-400/70 drop-shadow-2xl">Financial Flight Simulator v1.0</p>
+          <p className="text-zinc-500 text-[14px] font-black uppercase tracking-[1.2em] mt-8 ml-3 text-zinc-400/70 drop-shadow-2xl">Financial Flight Simulator v1.0</p>
           <div className="absolute -top-10 -left-10 w-40 h-40 bg-green-500/10 blur-[80px] -z-10 group-hover:bg-green-500/20 transition-colors" />
         </div>
         <div className="flex flex-col md:flex-row gap-5 w-full md:w-auto pb-2">
