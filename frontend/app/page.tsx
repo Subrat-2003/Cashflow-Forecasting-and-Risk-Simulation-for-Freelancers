@@ -33,8 +33,15 @@ interface Transaction {
 }
 
 // --- GEMINI API UTILITIES ---
-// Helper to get key directly from the environment to prevent build-time stripping
-const fetchKey = () => {
+// This constant is injected by the Canvas environment.
+const internalApiKey = ""; 
+
+const getActiveKey = () => {
+  // 1. Check if Canvas injected a key
+  if (internalApiKey && internalApiKey.length > 0) return internalApiKey;
+  
+  // 2. Check if Vercel baked in a NEXT_PUBLIC key (Standard Next.js)
+  // Use a try-catch to prevent ReferenceError in non-node environments
   try {
     return process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
   } catch (e) {
@@ -43,7 +50,7 @@ const fetchKey = () => {
 };
 
 const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You are a financial AI assistant.") => {
-  const key = fetchKey();
+  const key = getActiveKey();
   if (!key) throw new Error("KEY_EMPTY");
 
   let delay = 1000;
@@ -71,7 +78,7 @@ const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You a
 };
 
 const playTTSWithRetry = async (text: string) => {
-  const key = fetchKey();
+  const key = getActiveKey();
   if (!key) throw new Error("KEY_EMPTY");
 
   let delay = 1000;
@@ -140,7 +147,7 @@ const RiskGauge: React.FC<{ score: number }> = ({ score }) => {
         }`} />
       </div>
       <div className="mt-8 text-center">
-        <p className="text-[9px] font-mono text-zinc-600 uppercase font-bold tracking-widest leading-none mb-2 text-zinc-400">Status: {displayScore > 40 ? 'Stable Monitoring' : 'Critical Alert'}</p>
+        <p className="text-[9px] font-mono text-zinc-600 uppercase font-bold tracking-widest leading-none mb-2">Status: {displayScore > 40 ? 'Stable Monitoring' : 'Critical Alert'}</p>
         <p className="text-[8px] font-mono text-zinc-700 italic uppercase">Model_P_Final_Ensemble_Active</p>
       </div>
     </div>
@@ -151,9 +158,9 @@ const StatCards: React.FC<{ currentBalance: number; runway: number; burnRate: nu
   currentBalance, runway, burnRate 
 }) => {
   const stats = [
-    { name: 'Current Balance', value: `$${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, change: '+2.5%', color: 'text-green-500', type: 'balance' },
-    { name: 'Projected Runway', value: `${runway} Months`, change: '-12 days', color: 'text-red-500', type: 'runway' },
-    { name: 'Burn Rate', value: `$${burnRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, change: 'Stable', color: 'text-zinc-500', type: 'burn' },
+    { name: 'Current Balance', value: `$${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, change: '+2.5%', color: 'text-green-500', iconType: 'up' },
+    { name: 'Projected Runway', value: `${runway} Months`, change: '-12 days', color: 'text-red-500', iconType: 'down' },
+    { name: 'Burn Rate', value: `$${burnRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, change: 'Stable', color: 'text-zinc-500', iconType: 'none' },
   ];
 
   return (
@@ -163,9 +170,9 @@ const StatCards: React.FC<{ currentBalance: number; runway: number; burnRate: nu
           <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest leading-none mb-3">{item.name}</p>
           <p className="text-3xl font-black text-white italic tracking-tight group-hover:text-green-400 transition-colors leading-none">{item.value}</p>
           <div className={`mt-4 text-[10px] font-black uppercase tracking-tighter flex items-center gap-1.5 ${item.color}`}>
-            {item.type === 'balance' && <ArrowUpRight size={14}/>}
-            {item.type === 'runway' && <ArrowDownRight size={14}/>}
-            {item.change} <span className="text-zinc-600 font-normal ml-1 text-[9px]">vs last month</span>
+            {item.iconType === 'up' && <ArrowUpRight size={14}/>}
+            {item.iconType === 'down' && <ArrowDownRight size={14}/>}
+            {item.change} <span className="text-zinc-600 font-normal ml-1">vs last month</span>
           </div>
         </div>
       ))}
@@ -214,33 +221,19 @@ const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBala
     { id: 5, client: 'Cloud Node', category: 'Fixed Cost', persona: 'Monthly Utility', amount: -245.00, status: 'completed', paid: true, balance: currentBalance - 3747.46, expected: '4/15/2026', risk: 'Low' },
   ];
 
-  const exportCSV = () => {
-    const headers = ["Client", "Category", "Persona", "Amount", "Status", "Expected", "Risk"];
-    const rows = transactions.map(t => [t.client, t.category, t.persona, t.amount, t.status, t.expected, t.risk]);
-    const content = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "prophet_ledger.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   return (
     <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[3rem] overflow-hidden backdrop-blur-md shadow-2xl">
       <div className="p-10 border-b border-zinc-800/50 flex flex-col md:flex-row justify-between items-center gap-6 bg-zinc-900/40">
         <div>
           <h3 className="text-2xl font-black italic text-white uppercase tracking-tighter leading-none">Transaction Database</h3>
-          <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-3 leading-none text-zinc-400">Live sync verified // SHA256 integrity</p>
+          <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-3 leading-none">Live sync verified // SHA256 integrity</p>
         </div>
         <div className="flex gap-4 w-full md:w-auto">
           <div className="relative flex-1 md:w-64">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16}/>
             <input type="text" placeholder="Search entries..." className="w-full bg-black/40 border border-zinc-800 rounded-2xl py-3 pl-12 pr-6 text-[11px] text-zinc-300 focus:outline-none" />
           </div>
-          <button onClick={exportCSV} className="bg-blue-600 text-white px-7 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-blue-500 shadow-lg shadow-blue-600/20">
+          <button className="bg-blue-600 text-white px-7 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-blue-500 shadow-lg shadow-blue-600/20">
             <FileText size={16}/> Export CSV
           </button>
         </div>
@@ -306,23 +299,23 @@ export default function App() {
   const [delay, setDelay] = useState(0);
   const [multiplier, setMultiplier] = useState(100);
 
-  // Gemini states
+  // Gemini state handling
   const [insight, setInsight] = useState<string | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [hasKey, setHasKey] = useState(false);
 
-  // Check key on mount to show debugging icon
+  // Connection check
   useEffect(() => {
-    setHasKey(fetchKey() !== "");
+    setHasKey(getActiveKey() !== "");
   }, []);
 
   const runSimulation = async (scenario: string, currentDelay: number, currentMultiplier: number) => {
     setLoading(true);
     await new Promise(r => setTimeout(r, 600));
 
-    // MATH ENGINE
+    // MATH ENGINE (Strict 4.2 Month Base)
     let sMult = 1.0;
     let sScore = 91.4;
     let burnBase = 3201.12;
@@ -369,15 +362,15 @@ export default function App() {
   const generateInsight = async () => {
     if (!data) return;
     setInsightLoading(true);
-    const prompt = `Perform an audit on the ${activeScenario} scenario. Current Balance: $${data.current_balance}, Runway: ${data.runway} months. Give one professional recommendation. Max 45 words.`;
+    const prompt = `Audit the ${activeScenario} scenario. Current Balance: $${data.current_balance}, Runway: ${data.runway} months. Give one professional recommendation. Max 45 words.`;
     try {
       const res = await callGeminiWithRetry(prompt, "You are Prophet AI intelligence.");
       setInsight(res || "Analysis failed.");
     } catch (e: any) {
       if (e.message === "KEY_EMPTY") {
-        setInsight("Neural Key missing. Push new commit to GitHub to sync Vercel.");
+        setInsight("Neural Key missing. Push new code to GitHub to force Vercel build.");
       } else {
-        setInsight("Strategic uplink timed out. Retrying...");
+        setInsight("Strategic uplink timed out. Check your Vercel logs.");
       }
     } finally {
       setInsightLoading(false);
@@ -387,13 +380,13 @@ export default function App() {
   const generateSummary = async () => {
     if (!data) return;
     setSummaryLoading(true);
-    const prompt = `Summarize current standing: $${data.current_balance} balance, ${activeScenario} outlook. 2 sentences.`;
+    const prompt = `Report standing: $${data.current_balance} balance, ${activeScenario} outlook. 2 sentences.`;
     try {
       const res = await callGeminiWithRetry(prompt, "You are a senior CFO AI.");
       setSummary(res || "Generation error.");
       if (res) await playTTSWithRetry(res);
     } catch (e: any) {
-      setSummary("Uplink error: System caching detected.");
+      setSummary("Uplink error: Hard build required to sync key.");
     } finally {
       setSummaryLoading(false);
     }
@@ -407,7 +400,7 @@ export default function App() {
 
   return (
     <main className="bg-black min-h-screen text-white p-10 md:p-14 font-sans overflow-x-hidden selection:bg-green-500/30 tracking-tight">
-      {/* Top Indicators */}
+      {/* Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-14">
         <div className="bg-red-950/20 border border-red-500/40 p-10 rounded-[3rem] flex items-center gap-10 shadow-2xl backdrop-blur-xl">
           <div className="bg-red-500 p-6 rounded-[2rem] text-black shadow-[0_0_40px_-5px_rgba(239,68,68,0.6)]">
@@ -429,7 +422,7 @@ export default function App() {
         </div>
         <div className="bg-zinc-900/40 border border-zinc-800 p-10 rounded-[3rem] flex flex-col justify-between shadow-2xl backdrop-blur-xl relative overflow-hidden group">
           <div className="flex justify-between items-center relative z-10">
-            <p className="text-zinc-500 text-[11px] font-black uppercase tracking-[0.4em] leading-none">AI Summary ✨</p>
+            <p className="text-zinc-500 text-[11px] font-black uppercase tracking-[0.4em] leading-none text-zinc-500">AI Summary ✨</p>
             <button onClick={generateSummary} disabled={summaryLoading || !data} className="text-green-500 hover:text-white transition-all active:scale-90 scale-125">
               {summaryLoading ? <Loader2 size={24} className="animate-spin" /> : <Volume2 size={24} />}
             </button>
@@ -444,7 +437,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Engineering Header */}
+      {/* Engineering Bar */}
       <div className="flex flex-col md:flex-row gap-6 mb-24">
         <div className="flex-1 bg-zinc-900/20 border border-zinc-800 p-8 rounded-[3rem] flex items-center gap-8 backdrop-blur-3xl border-zinc-800/50">
           <ShieldCheck className="text-green-500 shrink-0" size={36} />
@@ -459,9 +452,10 @@ export default function App() {
         </div>
       </div>
 
+      {/* Branding */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-32 gap-12 px-8">
         <div className="relative group">
-          <h1 className="text-9xl md:text-[13rem] font-black italic tracking-tighter text-white uppercase leading-[0.65] group-hover:skew-x-2 transition-transform duration-1000">Prophet AI</h1>
+          <h1 className="text-9xl md:text-[13rem] font-black italic tracking-tighter text-white uppercase leading-[0.65]">Prophet AI</h1>
           <p className="text-zinc-500 text-[15px] font-black uppercase tracking-[1.1em] mt-10 ml-4 text-zinc-400/80 drop-shadow-2xl">Financial Flight Simulator v1.0</p>
           <div className="absolute -top-20 -left-20 w-60 h-60 bg-green-500/10 blur-[120px] -z-10 group-hover:bg-green-500/20 transition-colors" />
         </div>
@@ -475,6 +469,7 @@ export default function App() {
         </div>
       </div>
 
+      {/* Primary Interaction Area */}
       <div className="flex flex-col lg:flex-row gap-20">
         <div className="w-full lg:w-[32rem] space-y-14">
           <div className="space-y-6">
@@ -496,7 +491,7 @@ export default function App() {
           {insight && (
             <div className="bg-green-500/10 border border-green-500/30 p-12 rounded-[4rem] backdrop-blur-[100px] relative group shadow-2xl animate-in fade-in slide-in-from-bottom-10 duration-1000">
               <div className="absolute top-8 right-10 text-green-500/50"><BrainCircuit size={32} className="group-hover:scale-110 transition-transform"/></div>
-              <p className="text-[12px] font-black uppercase text-green-500 mb-8 tracking-[0.5em] leading-none">Neural Insight ✨</p>
+              <p className="text-[12px] font-black uppercase text-green-500 mb-8 tracking-[0.5em] leading-none text-green-500">Neural Insight ✨</p>
               <p className="text-xl font-bold text-white leading-[1.5] italic tracking-tight">"{insight}"</p>
             </div>
           )}
@@ -531,4 +526,4 @@ export default function App() {
   );
 }
 
-// Neural Sync Build: 1.0.4
+// Neural Sync Build: 1.0.5
