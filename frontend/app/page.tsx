@@ -33,7 +33,10 @@ interface Transaction {
 }
 
 // --- GEMINI API UTILITIES ---
-const apiKey = ""; // API key provided by environment
+// Use environment variable if available (for Vercel), otherwise fallback to empty string (for Canvas environment)
+const apiKey = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_GEMINI_API_KEY 
+  ? process.env.NEXT_PUBLIC_GEMINI_API_KEY 
+  : "";
 
 const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You are a financial AI assistant.") => {
   let delay = 1000;
@@ -47,9 +50,14 @@ const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You a
           systemInstruction: { parts: [{ text: systemPrompt }] }
         })
       });
-      if (!response.ok) throw new Error('API request failed');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `API request failed: ${response.status}`);
+      }
       const result = await response.json();
-      return result.candidates?.[0]?.content?.parts?.[0]?.text;
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error('No text content in response');
+      return text;
     } catch (error) {
       if (i === 4) throw error;
       await new Promise(r => setTimeout(r, delay));
@@ -74,18 +82,18 @@ const playTTSWithRetry = async (text: string) => {
           model: "gemini-2.5-flash-preview-tts"
         })
       });
-      if (!response.ok) throw new Error('TTS API request failed');
+      if (!response.ok) throw new Error(`TTS API request failed: ${response.status}`);
       const result = await response.json();
       
       const part = result.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
-      if (!part) throw new Error('No audio data in response');
+      if (!part) throw new Error('No audio data in response content');
 
       const pcmBase64 = part.inlineData.data;
       const mimeType = part.inlineData.mimeType || "audio/L16;rate=24000";
       const sampleRateMatch = mimeType.match(/rate=(\d+)/);
       const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1]) : 24000;
 
-      // PCM16 to WAV conversion
+      // Robust PCM16 to WAV conversion
       const binaryString = atob(pcmBase64);
       const len = binaryString.length;
       const bytes = new Uint8Array(len);
@@ -96,22 +104,23 @@ const playTTSWithRetry = async (text: string) => {
 
       const wavHeader = new ArrayBuffer(44);
       const view = new DataView(wavHeader);
-      view.setUint32(0, 0x52494646, false); 
-      view.setUint32(4, 36 + pcmBuffer.byteLength, true); 
-      view.setUint32(8, 0x57415645, false); 
-      view.setUint32(12, 0x666d7420, false); 
-      view.setUint32(16, 16, true); 
-      view.setUint16(20, 1, true); 
-      view.setUint16(22, 1, true); 
-      view.setUint32(24, sampleRate, true); 
-      view.setUint32(28, sampleRate * 2, true); 
-      view.setUint16(32, 2, true); 
-      view.setUint16(34, 16, true); 
-      view.setUint32(36, 0x64617461, false); 
-      view.setUint32(40, pcmBuffer.byteLength, true); 
+      view.setUint32(0, 0x52494646, false); // "RIFF"
+      view.setUint32(4, 36 + pcmBuffer.byteLength, true); // total size
+      view.setUint32(8, 0x57415645, false); // "WAVE"
+      view.setUint32(12, 0x666d7420, false); // "fmt "
+      view.setUint32(16, 16, true); // subchunk1size (16 for PCM)
+      view.setUint16(20, 1, true); // audioformat (1 for PCM)
+      view.setUint16(22, 1, true); // numchannels
+      view.setUint32(24, sampleRate, true); // samplerate
+      view.setUint32(28, sampleRate * 2, true); // byterate
+      view.setUint16(32, 2, true); // blockalign
+      view.setUint16(34, 16, true); // bitspersample
+      view.setUint32(36, 0x64617461, false); // "data"
+      view.setUint32(40, pcmBuffer.byteLength, true); // datachunksize
 
       const blob = new Blob([wavHeader, pcmBuffer], { type: 'audio/wav' });
-      const audio = new Audio(URL.createObjectURL(blob));
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
       await audio.play();
       return;
     } catch (error) {
@@ -376,6 +385,7 @@ export default function Dashboard() {
       const res = await callGeminiWithRetry(prompt, "You are Prophet AI, a ruthless financial intelligence agent.");
       setInsight(res || "Analysis failed.");
     } catch (e) {
+      console.error("Gemini Insight Error:", e);
       setInsight("Error connecting to neural uplink.");
     } finally {
       setInsightLoading(false);
@@ -391,6 +401,7 @@ export default function Dashboard() {
       setSummary(res || "Summary generation failed.");
       if (res) await playTTSWithRetry(res);
     } catch (e) {
+      console.error("Gemini TTS Error:", e);
       setSummary("Error generating voice summary.");
     } finally {
       setSummaryLoading(false);
