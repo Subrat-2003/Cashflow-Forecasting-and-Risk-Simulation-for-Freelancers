@@ -33,10 +33,8 @@ interface Transaction {
 }
 
 // --- GEMINI API UTILITIES ---
-// MANDATORY: For Vercel, add NEXT_PUBLIC_GEMINI_API_KEY to your env variables.
-const apiKey = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_GEMINI_API_KEY 
-  ? process.env.NEXT_PUBLIC_GEMINI_API_KEY 
-  : "";
+// Note: execution environment provides the key at runtime.
+const apiKey = ""; 
 
 const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You are a financial AI assistant.") => {
   let delay = 1000;
@@ -50,14 +48,9 @@ const callGeminiWithRetry = async (prompt: string, systemPrompt: string = "You a
           systemInstruction: { parts: [{ text: systemPrompt }] }
         })
       });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error?.message || "API_ERROR");
-      }
+      if (!response.ok) throw new Error('API_FAIL');
       const result = await response.json();
-      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) throw new Error("EMPTY_RESPONSE");
-      return text;
+      return result.candidates?.[0]?.content?.parts?.[0]?.text;
     } catch (error) {
       if (i === 4) throw error;
       await new Promise(r => setTimeout(r, delay));
@@ -74,7 +67,7 @@ const playTTSWithRetry = async (text: string) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `Say in a professional, reassuring financial advisor tone: ${text}` }] }],
+          contents: [{ parts: [{ text: `Say clearly: ${text}` }] }],
           generationConfig: {
             responseModalities: ["AUDIO"],
             speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } }
@@ -82,39 +75,34 @@ const playTTSWithRetry = async (text: string) => {
           model: "gemini-2.5-flash-preview-tts"
         })
       });
-      if (!response.ok) throw new Error("TTS_FAIL");
+      if (!response.ok) throw new Error('TTS_API_FAIL');
       const result = await response.json();
+      const pcmBase64 = result.candidates[0].content.parts[0].inlineData.data;
       
-      const audioPart = result.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
-      if (!audioPart) throw new Error("NO_AUDIO");
-
-      const pcmBase64 = audioPart.inlineData.data.replace(/\s/g, '');
-      const mimeType = audioPart.inlineData.mimeType || "audio/L16;rate=24000";
-      const sampleRateMatch = mimeType.match(/rate=(\d+)/);
-      const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1]) : 24000;
-
-      // Robust PCM16 to WAV conversion
       const binaryString = atob(pcmBase64);
-      const pcmBuffer = new Uint8Array(binaryString.length);
-      for (let j = 0; j < binaryString.length; j++) {
-        pcmBuffer[j] = binaryString.charCodeAt(j);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let j = 0; j < len; j++) {
+        bytes[j] = binaryString.charCodeAt(j);
       }
+      const pcmBuffer = bytes.buffer;
 
+      const sampleRate = 24000;
       const wavHeader = new ArrayBuffer(44);
       const view = new DataView(wavHeader);
-      view.setUint32(0, 0x52494646, false); // "RIFF"
-      view.setUint32(4, 36 + pcmBuffer.length, true);
-      view.setUint32(8, 0x57415645, false); // "WAVE"
-      view.setUint32(12, 0x666d7420, false); // "fmt "
-      view.setUint32(16, 16, true);
-      view.setUint16(20, 1, true); // PCM
-      view.setUint16(22, 1, true); // Mono
-      view.setUint32(24, sampleRate, true);
-      view.setUint32(28, sampleRate * 2, true);
-      view.setUint16(32, 2, true);
-      view.setUint16(34, 16, true);
-      view.setUint32(36, 0x64617461, false); // "data"
-      view.setUint32(40, pcmBuffer.length, true);
+      view.setUint32(0, 0x52494646, false); 
+      view.setUint32(4, 36 + pcmBuffer.byteLength, true); 
+      view.setUint32(8, 0x57415645, false); 
+      view.setUint32(12, 0x666d7420, false); 
+      view.setUint32(16, 16, true); 
+      view.setUint16(20, 1, true); 
+      view.setUint16(22, 1, true); 
+      view.setUint32(24, sampleRate, true); 
+      view.setUint32(28, sampleRate * 2, true); 
+      view.setUint16(32, 2, true); 
+      view.setUint16(34, 16, true); 
+      view.setUint32(36, 0x64617461, false); 
+      view.setUint32(40, pcmBuffer.byteLength, true); 
 
       const blob = new Blob([wavHeader, pcmBuffer], { type: 'audio/wav' });
       const audio = new Audio(URL.createObjectURL(blob));
@@ -143,7 +131,7 @@ const RiskGauge: React.FC<{ score: number }> = ({ score }) => {
         }`} />
       </div>
       <div className="mt-8 text-center">
-        <p className="text-[9px] font-mono text-zinc-600 uppercase font-bold tracking-widest mb-1">Status: {displayScore > 40 ? 'Stable Monitoring' : 'Critical Alert'}</p>
+        <p className="text-[9px] font-mono text-zinc-600 uppercase font-bold tracking-widest leading-none mb-2">Status: {displayScore > 40 ? 'Stable Monitoring' : 'Critical Alert'}</p>
         <p className="text-[8px] font-mono text-zinc-700 italic uppercase">Model_P_Final_Ensemble_Active</p>
       </div>
     </div>
@@ -163,11 +151,11 @@ const StatCards: React.FC<{ currentBalance: number; runway: number; burnRate: nu
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {stats.map((item) => (
-        <div key={item.name} className="bg-zinc-900/40 border border-zinc-800 p-8 rounded-[2.5rem] backdrop-blur-md hover:border-zinc-700 transition-colors group">
+        <div key={item.name} className="bg-zinc-900/40 border border-zinc-800 p-8 rounded-3xl backdrop-blur-md hover:border-zinc-700 transition-colors group">
           <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest leading-none mb-4">{item.name}</p>
           <p className="text-4xl font-black text-white italic tracking-tight group-hover:text-green-400 transition-colors leading-none">{item.value}</p>
           <div className={`mt-5 text-[11px] font-black uppercase tracking-tighter flex items-center gap-1.5 ${item.color}`}>
-            {item.icon} {item.change} <span className="text-zinc-600 font-normal">vs last month</span>
+            {item.icon} {item.change} <span className="text-zinc-600 font-normal ml-1">vs last month</span>
           </div>
         </div>
       ))}
@@ -180,7 +168,7 @@ const CashflowChart: React.FC<{ data: any[]; loading: boolean }> = ({ data, load
   if (loading) return (
     <div className="h-full w-full flex flex-col items-center justify-center space-y-5">
       <div className="text-green-500 animate-spin"><Cpu size={44}/></div>
-      <div className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.6em] animate-pulse">Neural Simulation Active...</div>
+      <div className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.6em] animate-pulse">Running Neural Simulation...</div>
     </div>
   );
   return (
@@ -197,11 +185,11 @@ const CashflowChart: React.FC<{ data: any[]; loading: boolean }> = ({ data, load
           <XAxis dataKey="date" stroke="#3f3f46" fontSize={10} tickLine={false} axisLine={false} dy={10} fontFamily="monospace" />
           <YAxis stroke="#3f3f46" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v.toLocaleString()}`} dx={-10} fontFamily="monospace" />
           <Tooltip 
-            contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '20px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)' }}
-            itemStyle={{ color: '#22c55e', fontWeight: 'bold', fontSize: '13px' }}
+            contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '20px' }}
+            itemStyle={{ color: '#22c55e', fontWeight: 'bold' }}
             formatter={(v: number) => [`$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Balance']}
           />
-          <Area type="monotone" dataKey="balance" stroke="#22c55e" strokeWidth={5} fillOpacity={1} fill="url(#chartFill)" animationDuration={2000} />
+          <Area type="monotone" dataKey="balance" stroke="#22c55e" strokeWidth={5} fillOpacity={1} fill="url(#chartFill)" animationDuration={1500} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -226,7 +214,7 @@ const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBala
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "prophet_ledger_export.csv");
+    link.setAttribute("download", "prophet_ledger.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -242,9 +230,9 @@ const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBala
         <div className="flex gap-4 w-full md:w-auto">
           <div className="relative flex-1 md:w-72">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={18}/>
-            <input type="text" placeholder="Search ledger..." className="w-full bg-black/40 border border-zinc-800 rounded-2xl py-3.5 pl-12 pr-6 text-[11px] text-zinc-300 focus:outline-none focus:border-green-500/50 transition-all" />
+            <input type="text" placeholder="Search entries..." className="w-full bg-black/40 border border-zinc-800 rounded-2xl py-3.5 pl-12 pr-6 text-[11px] text-zinc-300 focus:outline-none focus:border-green-500/50 transition-all" />
           </div>
-          <button onClick={exportCSV} className="bg-blue-600 text-white px-8 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-blue-500 transition-all active:scale-95 shadow-lg shadow-blue-600/30">
+          <button onClick={exportCSV} className="bg-blue-600 text-white px-8 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-blue-500 transition-all active:scale-95">
             <FileText size={18}/> Export CSV
           </button>
         </div>
@@ -255,7 +243,6 @@ const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBala
             <tr className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-800/20 bg-zinc-900/20">
               <th className="px-10 py-7">Client</th>
               <th className="px-10 py-7">Category</th>
-              <th className="px-10 py-7">Persona</th>
               <th className="px-10 py-7 text-right">Amount</th>
               <th className="px-10 py-7 text-center">Status</th>
               <th className="px-10 py-7 text-center">Paid</th>
@@ -269,14 +256,13 @@ const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBala
               <tr key={tx.id} className="hover:bg-zinc-800/30 transition-colors group">
                 <td className="px-10 py-6 text-sm text-white font-bold">{tx.client}</td>
                 <td className="px-10 py-6 text-[10px] text-zinc-500 uppercase font-black">{tx.category}</td>
-                <td className="px-10 py-6 text-[10px] text-zinc-600 italic leading-none">{tx.persona}</td>
                 <td className={`px-10 py-6 text-sm text-right font-black ${tx.amount > 0 ? 'text-green-500' : 'text-red-500'}`}>
                   {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </td>
                 <td className="px-10 py-6 text-center">
                   <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase inline-flex items-center gap-2 ${
-                    tx.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' : 
-                    tx.status === 'completed' || tx.status === 'cleared' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-zinc-800 text-zinc-500'
+                    tx.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' : 
+                    tx.status === 'completed' || tx.status === 'cleared' ? 'bg-green-500/10 text-green-500' : 'bg-zinc-800 text-zinc-500'
                   }`}>
                     {tx.status === 'completed' || tx.status === 'cleared' ? <CheckCircle2 size={12}/> : <Clock size={12}/>}
                     {tx.status}
@@ -295,8 +281,8 @@ const TransactionDatabase: React.FC<{ currentBalance: number }> = ({ currentBala
                 <td className="px-10 py-6 text-[11px] text-zinc-600 font-mono tracking-tighter whitespace-nowrap">{tx.expected}</td>
                 <td className="px-10 py-6">
                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${
-                     tx.risk === 'High' ? 'text-red-500 border-red-500/30 bg-red-500/5' : 
-                     tx.risk === 'Medium' ? 'text-yellow-500 border-yellow-500/30 bg-yellow-500/5' : 'text-green-500 border-green-500/30 bg-green-500/5'
+                     tx.risk === 'High' ? 'text-red-500 border-red-500/30' : 
+                     tx.risk === 'Medium' ? 'text-yellow-500 border-yellow-500/30' : 'text-green-500 border-green-500/30'
                    }`}>{tx.risk}</span>
                 </td>
               </tr>
@@ -316,7 +302,7 @@ export default function App() {
   const [delay, setDelay] = useState(0);
   const [multiplier, setMultiplier] = useState(100);
 
-  // Gemini Features State
+  // AI Feature States
   const [insight, setInsight] = useState<string | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
@@ -326,11 +312,10 @@ export default function App() {
     setLoading(true);
     await new Promise(r => setTimeout(r, 600));
 
-    // MATH ENGINE
     let sMult = 1.0;
     let sScore = 91.4;
     let burnBase = 3201.12;
-    const baseValue = 13444.70; // Baseline for 4.2 Mo baseline
+    const baseValue = 13444.70; 
 
     if (scenario === 'Late Payments') { sMult = 0.75; sScore = 65; burnBase = 3218.54; }
     else if (scenario === 'High Burn') { sMult = 0.55; sScore = 42; burnBase = 5802.45; }
@@ -341,7 +326,6 @@ export default function App() {
     
     const currentBal = Math.round(baseValue * sMult * delayMult);
     const effectiveBurn = burnBase * sliderMult;
-    
     const dynamicRunway = Number((currentBal / effectiveBurn).toFixed(1));
 
     const getSlope = (idx: number) => {
@@ -374,13 +358,12 @@ export default function App() {
   const generateInsight = async () => {
     if (!data) return;
     setInsightLoading(true);
-    const prompt = `Perform financial analysis on scenario: ${activeScenario}. Metrics: $${data.current_balance} balance, ${data.runway}mo runway, $${data.burn_rate} burn. Provide ONE professional strategic action for a freelancer. Max 50 words.`;
+    const prompt = `Analyze scenario: ${activeScenario}. Bal: $${data.current_balance}, Runway: ${data.runway}mo, Burn: $${data.burn_rate}. ONE strategic professional move. 40 words.`;
     try {
-      if (!apiKey) throw new Error("AUTH_MISSING");
-      const res = await callGeminiWithRetry(prompt, "You are Prophet AI, a ruthless financial intelligence agent.");
-      setInsight(res || "Analysis failed.");
-    } catch (e: any) {
-      setInsight(`Neural uplink error: ${e.message === "AUTH_MISSING" ? "Check Vercel API Key" : "Connection fail"}`);
+      const res = await callGeminiWithRetry(prompt, "You are a financial intelligence core.");
+      setInsight(res || "Sim failure.");
+    } catch (e) {
+      setInsight("Connection timeout.");
     } finally {
       setInsightLoading(false);
     }
@@ -389,14 +372,13 @@ export default function App() {
   const generateSummary = async () => {
     if (!data) return;
     setSummaryLoading(true);
-    const prompt = `Generate a 2-sentence executive summary. Bal: $${data.current_balance}. Outlook: ${activeScenario}. Runway: ${data.runway}mo. End with a firm, reassuring closing.`;
+    const prompt = `Generate a 2-sentence professional standing report. Bal: $${data.current_balance}. Scenario: ${activeScenario}.`;
     try {
-      if (!apiKey) throw new Error("AUTH_MISSING");
       const res = await callGeminiWithRetry(prompt, "You are a senior CFO AI.");
       setSummary(res || "Summary generation failed.");
       if (res) await playTTSWithRetry(res);
-    } catch (e: any) {
-      setSummary(`Sync error: ${e.message === "AUTH_MISSING" ? "Missing API Key" : "Network error"}`);
+    } catch (e) {
+      setSummary("Uplink error.");
     } finally {
       setSummaryLoading(false);
     }
@@ -443,7 +425,7 @@ export default function App() {
             </button>
           </div>
           <p className="text-sm text-zinc-300 mt-6 leading-relaxed min-h-[50px] relative z-10 italic font-medium">
-            {summary || "Generate a voice-enabled summary of your real-time standing via neural uplink."}
+            {summary || "Click speaker to generate voice-enabled summary."}
           </p>
           <div className="absolute -bottom-10 -right-10 text-green-500/5 rotate-12 group-hover:rotate-0 transition-transform duration-1000">
             <BrainCircuit size={140} />
