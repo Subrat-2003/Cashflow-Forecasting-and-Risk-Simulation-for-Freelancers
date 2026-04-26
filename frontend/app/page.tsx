@@ -39,6 +39,90 @@ interface HandshakeLog {
   integrity: string;
 }
 
+// --- SUB-COMPONENTS (FIXED: Added RiskGauge Definition) ---
+const RiskGauge: React.FC<{ score: number }> = ({ score }) => {
+  const displayScore = Math.max(0, Math.min(100, score));
+  return (
+    <div className="flex flex-col items-center justify-center py-6">
+      <p className="text-[10px] text-zinc-500 mb-6 font-black uppercase tracking-[0.3em] text-center leading-none">Financial Confidence</p>
+      <div className="relative flex items-center justify-center">
+        <span className={`text-8xl font-black italic tracking-tighter transition-all duration-1000 ${
+          displayScore > 70 ? 'text-green-500' : displayScore > 40 ? 'text-yellow-500' : 'text-red-500'
+        }`}>{displayScore}%</span>
+        <div className={`absolute inset-0 blur-[80px] opacity-20 -z-10 transition-colors duration-1000 ${
+          displayScore > 70 ? 'bg-green-500' : displayScore > 40 ? 'bg-yellow-500' : 'bg-red-500'
+        }`} />
+      </div>
+      <div className="mt-8 text-center">
+        <p className="text-[9px] font-mono text-zinc-600 uppercase font-bold tracking-widest leading-none mb-2 text-zinc-400">Status: {displayScore > 40 ? 'Stable Monitoring' : 'Critical Alert'}</p>
+        <p className="text-[8px] font-mono text-zinc-700 italic uppercase">Model_P_Final_Ensemble_Active</p>
+      </div>
+    </div>
+  );
+};
+
+const StatCards: React.FC<{ currentBalance: number; runway: number; burnRate: number }> = ({ 
+  currentBalance, runway, burnRate 
+}) => {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-zinc-900/40 border border-zinc-800 p-8 rounded-3xl backdrop-blur-md hover:border-zinc-700 transition-colors group shadow-lg">
+        <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-3">Current Balance</p>
+        <p className="text-3xl font-black text-white italic tracking-tight group-hover:text-green-400 transition-colors leading-none">${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+        <div className="mt-4 text-[10px] font-black uppercase tracking-tighter flex items-center gap-1.5 text-green-500">
+          <ArrowUpRight size={14}/> +2.5% <span className="text-zinc-600 font-normal">vs last month</span>
+        </div>
+      </div>
+      <div className="bg-zinc-900/40 border border-zinc-800 p-8 rounded-3xl backdrop-blur-md hover:border-zinc-700 transition-colors group shadow-lg">
+        <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-3">Projected Runway</p>
+        <p className="text-3xl font-black text-white italic tracking-tight group-hover:text-red-400 leading-none">{runway} Months</p>
+        <div className="mt-4 text-[10px] font-black uppercase tracking-tighter flex items-center gap-1.5 text-red-500">
+          <ArrowDownRight size={14}/> -12 days <span className="text-zinc-600 font-normal">vs last month</span>
+        </div>
+      </div>
+      <div className="bg-zinc-900/40 border border-zinc-800 p-8 rounded-3xl backdrop-blur-md hover:border-zinc-700 transition-colors group shadow-lg">
+        <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-3">Burn Rate</p>
+        <p className="text-3xl font-black text-white italic tracking-tight group-hover:text-green-400 transition-colors leading-none">${burnRate.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+        <div className="mt-4 text-[10px] font-black uppercase tracking-tighter flex items-center gap-1.5 text-zinc-500">
+          Stable <span className="text-zinc-600 font-normal ml-1">vs last month</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CashflowChart: React.FC<{ data: any[]; loading: boolean }> = ({ data, loading }) => {
+  if (loading) return (
+    <div className="h-full w-full flex flex-col items-center justify-center space-y-4">
+      <div className="text-green-500 animate-spin"><Cpu size={44}/></div>
+      <div className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.5em] animate-pulse">Running Neural Simulation...</div>
+    </div>
+  );
+  return (
+    <div className="h-full w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data}>
+          <defs>
+            <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2}/>
+              <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#18181b" vertical={false} />
+          <XAxis dataKey="date" stroke="#3f3f46" fontSize={10} tickLine={false} axisLine={false} dy={10} fontFamily="monospace" />
+          <YAxis stroke="#3f3f46" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v.toLocaleString()}`} dx={-10} fontFamily="monospace" />
+          <Tooltip 
+            contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '16px' }}
+            itemStyle={{ color: '#22c55e', fontWeight: 'bold' }}
+            formatter={(v: number) => [`$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Balance']}
+          />
+          <Area type="monotone" dataKey="balance" stroke="#22c55e" strokeWidth={5} fillOpacity={1} fill="url(#chartFill)" animationDuration={1500} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
 // --- MAIN DASHBOARD PAGE ---
 export default function App() {
   const [data, setData] = useState<ForecastData | null>(null);
@@ -78,8 +162,7 @@ export default function App() {
       const forecastDate = new Date(today);
       forecastDate.setDate(today.getDate() + i);
       
-      // Simulation logic per day
-      const dailyVariance = 1 + (Math.sin(i * 0.5) * 0.02); // Small natural fluctuation
+      const dailyVariance = 1 + (Math.sin(i * 0.5) * 0.02); 
       const projectedBalance = Math.round(currentBal - (dailyBurn * i * dailyVariance));
       
       dailyForecast.push({
@@ -90,7 +173,6 @@ export default function App() {
       });
     }
 
-    // Chart Data (5 Main Milestones for visual clarity)
     const chartData = [
       { date: 'Now', balance: dailyForecast[0].balance },
       { date: 'Week 1', balance: dailyForecast[7].balance },
@@ -114,7 +196,7 @@ export default function App() {
     runSimulation(activeScenario, delay, multiplier); 
   }, [activeScenario, delay, multiplier]);
 
-  // Static Data for History & Handshake (Expanded for scrolling)
+  // Expanded Data for scrollables
   const historyData: Transaction[] = useMemo(() => [
     { id: 101, date: 'Apr 26', client: 'Digital Pulse', category: 'Milestone', amount: 1326.45, status: 'pending', risk: 'Low' },
     { id: 102, date: 'Apr 25', client: 'SteadyState Media', category: 'Retainer', amount: 1370.18, status: 'pending', risk: 'Medium' },
@@ -141,14 +223,13 @@ export default function App() {
     { id: 'F0X-332-SHA', client: 'Zoom Auth Node', state: 'SUCCESS', timestamp: '3 days ago', integrity: 'Verified' },
   ], []);
 
-  // Safe Spending Logic
   const safeNetMax = data ? (data.current_balance * 0.22) / (multiplier / 100) : 0;
   const safeNetMin = safeNetMax * 0.4;
 
   return (
     <main className="bg-black min-h-screen text-white p-10 md:p-14 font-sans overflow-x-hidden selection:bg-green-500/30 tracking-tight">
       
-      {/* --- TOP INDICATORS ROW --- */}
+      {/* Top Indicators */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-14">
         <div className="bg-red-950/20 border border-red-500/40 p-10 rounded-[3rem] flex items-center gap-10 shadow-2xl backdrop-blur-xl">
           <div className="bg-red-500 p-6 rounded-[2rem] text-black shadow-[0_0_40px_-5px_rgba(239,68,68,0.6)]">
@@ -183,7 +264,7 @@ export default function App() {
              </p>
              <div className="mt-4 pt-4 border-t border-zinc-800/50">
                 <p className="text-[10px] text-zinc-500 font-bold uppercase italic leading-tight">
-                  Briefing and Strategy Audit modules are on local standby for v1.1.
+                  Neural voice briefing and audit modules arriving in v1.1.
                 </p>
              </div>
           </div>
@@ -191,12 +272,12 @@ export default function App() {
         </div>
       </div>
 
-      {/* --- ENGINEERING LAYER --- */}
+      {/* Engineering Header */}
       <div className="flex flex-col md:flex-row gap-6 mb-24">
         <div className="flex-1 bg-zinc-900/20 border border-zinc-800 p-8 rounded-[3rem] flex items-center gap-8 backdrop-blur-3xl border-zinc-800/50">
           <ShieldCheck className="text-green-500 shrink-0" size={36} />
           <div className="overflow-hidden">
-             <p className="text-[11px] font-mono text-zinc-500 uppercase tracking-widest mb-2 leading-none">Integrity Shield: SHA256 Encryption Active</p>
+             <p className="text-[11px] font-mono text-zinc-500 uppercase tracking-widest mb-2 leading-none">Integrity Shield: Active</p>
              <p className="text-sm font-mono text-green-500/80 font-bold uppercase truncate tracking-tighter leading-none">SYSTEM_STATUS: SECURE // DATA_VERIFIED_7X24</p>
           </div>
         </div>
@@ -206,7 +287,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* --- BRANDING & LOG --- */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-32 gap-12 px-8">
         <div className="relative group">
           <h1 className="text-9xl md:text-[13rem] font-black italic tracking-tighter text-white uppercase leading-[0.65]">Prophet AI</h1>
@@ -214,18 +294,19 @@ export default function App() {
           <div className="absolute -top-20 -left-20 w-60 h-60 bg-green-500/10 blur-[120px] -z-10 group-hover:bg-green-500/20 transition-colors" />
         </div>
         <div className="flex flex-col md:flex-row gap-6 w-full md:w-auto pb-4">
-          <button className="bg-zinc-900 text-zinc-600 border border-zinc-800/50 cursor-not-allowed font-black px-14 py-8 rounded-full transition-all uppercase text-[14px] tracking-[0.4em] flex items-center justify-center gap-5 shadow-2xl">
-            <Volume2 size={24} /> Briefing
-          </button>
+          <div className="relative group/btn">
+            <button className="bg-zinc-900 text-zinc-600 border border-zinc-800/50 cursor-not-allowed font-black px-14 py-8 rounded-full transition-all uppercase text-[14px] tracking-[0.4em] flex items-center justify-center gap-5 shadow-2xl">
+              <Volume2 size={24} /> Briefing
+            </button>
+          </div>
           <button className="bg-white text-black hover:bg-green-500 hover:text-white font-black px-18 py-8 rounded-full transition-all uppercase text-[14px] tracking-[0.4em] shadow-[0_25px_60px_-15px_rgba(255,255,255,0.4)] flex items-center justify-center gap-6 active:scale-95 group border-2 border-white">
             <Plus size={28} className="group-hover:rotate-90 transition-transform duration-500"/> Log Entry
           </button>
         </div>
       </div>
 
-      {/* --- SIMULATOR WORKSPACE --- */}
+      {/* Primary Simulator Workspace */}
       <div className="flex flex-col lg:flex-row gap-20">
-        {/* Sliders Sidebar */}
         <div className="w-full lg:w-[32rem] space-y-14">
           <div className="space-y-6">
             <p className="text-[12px] font-black uppercase text-zinc-600 mb-10 tracking-[0.6em] ml-8 flex items-center gap-4"><Filter size={18}/> Simulation Protocol</p>
@@ -260,7 +341,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Forecast Visualization Area */}
         <div className="flex-1 space-y-24">
           <div className="bg-zinc-900/40 p-16 md:p-24 rounded-[6rem] border border-zinc-800/50 backdrop-blur-[150px] relative shadow-2xl overflow-hidden group">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-24 relative z-10 gap-8">
@@ -279,7 +359,7 @@ export default function App() {
           
           <StatCards currentBalance={data?.current_balance ?? 0} runway={data?.runway ?? 0} burnRate={data?.burn_rate ?? 0} />
           
-          {/* --- INTELLIGENCE PORTAL (TABS) --- */}
+          {/* --- TABBED INTELLIGENCE PORTAL (FIXED SCROLLABLES) --- */}
           <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[4rem] overflow-hidden backdrop-blur-md shadow-2xl">
             <div className="flex border-b border-zinc-800/50 bg-zinc-900/40 p-4 gap-4">
               <button 
@@ -304,7 +384,7 @@ export default function App() {
 
             <div className="p-10">
               {activeTab === 'history' && (
-                <div className="overflow-y-auto max-h-[600px] pr-4 custom-scrollbar">
+                <div className="overflow-y-auto max-h-[500px] pr-4 custom-scrollbar">
                    <table className="w-full text-left">
                      <thead className="sticky top-0 bg-zinc-950 z-20">
                        <tr className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-800/20">
@@ -346,13 +426,13 @@ export default function App() {
                        <p className="text-3xl font-black italic text-zinc-500">94.8%</p>
                     </div>
                   </div>
-                  <div className="overflow-y-auto max-h-[600px] pr-4 custom-scrollbar">
+                  <div className="overflow-y-auto max-h-[500px] pr-4 custom-scrollbar">
                     <table className="w-full text-left">
                       <thead className="sticky top-0 bg-zinc-950 z-20">
                         <tr className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-800/20">
                           <th className="px-6 py-6">Milestone Date</th>
                           <th className="px-6 py-6 text-right">Projected Balance</th>
-                          <th className="px-6 py-6 text-center">Protocol Status</th>
+                          <th className="px-6 py-6 text-center">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-zinc-800/20">
@@ -377,7 +457,7 @@ export default function App() {
               )}
 
               {activeTab === 'handshake' && (
-                <div className="overflow-y-auto max-h-[600px] pr-4 custom-scrollbar">
+                <div className="overflow-y-auto max-h-[500px] pr-4 custom-scrollbar">
                   <table className="w-full text-left">
                     <thead className="sticky top-0 bg-zinc-950 z-20">
                       <tr className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-800/20">
@@ -418,4 +498,4 @@ export default function App() {
   );
 }
 
-// Stable Final Build: 1.0.10 - Deterministic Logic Active
+// Stable Final Build: 1.0.11 - Deterministic Logic Active
