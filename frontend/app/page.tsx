@@ -40,7 +40,6 @@ interface HandshakeLog {
 }
 
 // --- SHA-256 INTEGRITY UTILITY ---
-// Forensic Formula: $Hash = SHA256(Amount + "|" + Date + "|" + Category + "|" + UserID)$
 const calculateManualHash = async (tx: any) => {
   const msgUint8 = new TextEncoder().encode(`${tx.amount}|${tx.date}|${tx.category}|e6d6e60c-6890-4edf-94ea-7186e93a6064`);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
@@ -134,7 +133,6 @@ const CashflowChart: React.FC<{ data: any[]; loading: boolean }> = ({ data, load
 
 // --- MAIN DASHBOARD PAGE ---
 export default function App() {
-  // Simulator State
   const [data, setData] = useState<ForecastData | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeScenario, setActiveScenario] = useState('Stable');
@@ -142,11 +140,9 @@ export default function App() {
   const [multiplier, setMultiplier] = useState(100);
   const [activeTab, setActiveTab] = useState<'history' | 'forecast' | 'handshake'>('history');
 
-  // Neural Intelligence State
   const [isBriefingLoading, setIsBriefingLoading] = useState(false);
   const [aiStrategy, setAiStrategy] = useState<{ risk_level: string; strategic_actions: string[] } | null>(null);
 
-  // --- DYNAMIC DATA GENERATION ENGINE ---
   const runSimulation = async (scenario: string, currentDelay: number, currentMultiplier: number) => {
     setLoading(true);
     await new Promise(r => setTimeout(r, 800));
@@ -193,11 +189,10 @@ export default function App() {
     setLoading(false);
   };
 
-  // --- THE INTELLIGENCE HANDSHAKE ---
+  // --- THE INTELLIGENCE HANDSHAKE (Updated for Singapore Cloud) ---
   const handleBriefingTrigger = async () => {
     setIsBriefingLoading(true);
     try {
-      // 1. Prepare Payload with SHA-256 Integrity Hashes
       const transactionsWithHashes = await Promise.all(historyData.map(async (tx) => ({
         amount: tx.amount,
         date: tx.date,
@@ -213,24 +208,25 @@ export default function App() {
         transactions: transactionsWithHashes
       };
 
-      // 2. Initiate Job via FastAPI Backend (Port 8000)
-      const res = await fetch("http://localhost:8000/briefing", {
+      // Connect to Render Backend
+      const res = await fetch("https://prophet-ai-api.onrender.com/briefing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const { job_id } = await res.json();
 
-      // 3. Polling for Result (Llama 3.3 + edge-tts)
+      // Polling Status Endpoint
       const pollInterval = setInterval(async () => {
-        const statusRes = await fetch(`http://localhost:8000/briefing-status/${job_id}`);
+        const statusRes = await fetch(`https://prophet-ai-api.onrender.com/briefing-status/${job_id}`);
         const statusData = await statusRes.json();
 
         if (statusData.status === "complete") {
           clearInterval(pollInterval);
           setAiStrategy(statusData.data.analysis);
           setIsBriefingLoading(false);
-          const audio = new Audio(`http://localhost:8000${statusData.data.audio_url}`);
+          // Load Audio from Render Cloud
+          const audio = new Audio(`https://prophet-ai-api.onrender.com${statusData.data.audio_url}`);
           audio.play();
         } else if (statusData.status === "failed") {
           clearInterval(pollInterval);
@@ -268,7 +264,6 @@ export default function App() {
 
   return (
     <main className="bg-black min-h-screen text-white p-10 md:p-14 font-sans overflow-x-hidden selection:bg-green-500/30 tracking-tight">
-      {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-14">
         <div className="bg-red-950/20 border border-red-500/40 p-10 rounded-[3rem] flex items-center gap-10 shadow-2xl backdrop-blur-xl">
           <div className="bg-red-500 p-6 rounded-[2rem] text-black shadow-[0_0_40px_-5px_rgba(239,68,68,0.6)]"><TrendingDown size={44} /></div>
@@ -309,7 +304,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Engineering Header */}
       <div className="flex flex-col md:flex-row gap-6 mb-24">
         <div className="flex-1 bg-zinc-900/20 border border-zinc-800 p-8 rounded-[3rem] flex items-center gap-8 backdrop-blur-3xl border-zinc-800/50">
           <ShieldCheck className="text-green-500 shrink-0" size={36} />
@@ -324,7 +318,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main Branding & Briefing Action */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-32 gap-12 px-8">
         <div>
           <h1 className="text-9xl md:text-[13rem] font-black italic tracking-tighter text-white uppercase leading-[0.65]">Prophet AI</h1>
@@ -345,7 +338,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Primary Simulation Workspace */}
       <div className="flex flex-col lg:flex-row gap-20">
         <div className="w-full lg:w-[32rem] space-y-14">
           <div className="space-y-6">
@@ -392,7 +384,6 @@ export default function App() {
           
           <StatCards currentBalance={data?.current_balance ?? 0} runway={data?.runway ?? 0} burnRate={data?.burn_rate ?? 0} />
           
-          {/* Intelligence Portal */}
           <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[4rem] overflow-hidden backdrop-blur-md shadow-2xl">
             <div className="flex border-b border-zinc-800/50 bg-zinc-900/40 p-4 gap-4">
               {['history', 'forecast', 'handshake'].map((tab: any) => (
@@ -459,4 +450,4 @@ export default function App() {
     </main>
   );
 }
-// Stable Build: 1.0.12 
+// Live Deployment v1.13: 2026-05-14
