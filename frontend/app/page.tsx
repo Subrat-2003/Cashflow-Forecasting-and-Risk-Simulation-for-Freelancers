@@ -395,7 +395,7 @@ export default function App() {
                   {tab === 'history' && <History size={16}/>}
                   {tab === 'forecast' && <CalendarDays size={16}/>}
                   {tab === 'handshake' && <ShieldEllipsis size={16}/>}
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)} {tab === 'history' ? 'History' : tab === 'forecast' ? 'Forecast' : 'Handshake'}
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
               ))}
             </div>
@@ -422,6 +422,33 @@ export default function App() {
                    </table>
                 </div>
               )}
+
+              {activeTab === 'forecast' && (
+                <div className="overflow-y-auto max-h-[500px] pr-4 custom-scrollbar">
+                   <table className="w-full text-left">
+                     <thead className="sticky top-0 bg-zinc-950 z-20">
+                       <tr className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-800/20">
+                         <th className="px-6 py-6">Horizon</th><th className="px-6 py-6">Timeline Target</th><th className="px-6 py-6 text-right">Stochastic Projection</th><th className="px-6 py-6 text-center">Risk Tier</th>
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-zinc-800/20">
+                       {(data?.dailyForecast || []).map((f, i) => (
+                         <tr key={i} className="hover:bg-zinc-800/30 transition-colors">
+                           <td className="px-6 py-6 text-[11px] font-mono text-zinc-500">Day {f.day}</td>
+                           <td className="px-6 py-6 text-sm text-white font-bold">{f.date}</td>
+                           <td className={`px-6 py-6 text-sm text-right font-black ${f.balance > 0 ? 'text-green-500' : 'text-red-500'}`}>${f.balance.toLocaleString()}</td>
+                           <td className="px-6 py-6 text-center">
+                             <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter ${
+                               f.status === 'Nominal' ? 'bg-green-500/10 text-green-400' : f.status === 'Warning' ? 'bg-yellow-500/10 text-yellow-400' : 'bg-red-500/10 text-red-400'
+                             }`}>{f.status}</span>
+                           </td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
+                </div>
+              )}
+
               {activeTab === 'handshake' && (
                 <div className="overflow-y-auto max-h-[500px] pr-4 custom-scrollbar">
                   <table className="w-full text-left">
@@ -450,4 +477,4 @@ export default function App() {
     </main>
   );
 }
-// Live Deployment v1.13: 2026-05-14
+// Live Deployment v1.13
