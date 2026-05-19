@@ -76,7 +76,7 @@ const StatCards: React.FC<{ currentBalance: number; runway: number; burnRate: nu
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div className="bg-zinc-900/40 border border-zinc-800 p-8 rounded-3xl backdrop-blur-md hover:border-zinc-700 transition-colors group shadow-lg">
         <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-3">Current Balance</p>
-        <p className="text-3xl font-black text-white italic tracking-tight group-hover:text-green-400 transition-colors leading-none">${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+        <p className="text-3xl font-black text-white italic tracking-tight group-hover:text-green-400 transition-colors leading-none">₹{currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
         <div className="mt-4 text-[10px] font-black uppercase tracking-tighter flex items-center gap-1.5 text-green-500">
           <ArrowUpRight size={14}/> +2.5% <span className="text-zinc-600 font-normal">vs last month</span>
         </div>
