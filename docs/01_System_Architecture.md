@@ -58,10 +58,10 @@ The presentation tier handles transaction entry and real-time risk visualization
 **5. Data Flow**
 
 **Live Production Prediction Flow (per-user, request-time):**
-![](live_prediction_flow.png)
+![](docs/images/live_prediction_flow.png)
 
 **Offline Training & Deployment Pipeline (scheduled, independent of the live path):**
-![](offline_training_pipeline.png)
+![](docs/images/offline_training_pipeline.png)
 
 **Note:** this nightly pipeline writes predictions for one hardcoded test user, not per real platform user, it is architecturally separate from the live Prophet-based forecast a real user sees via the dashboard.
 
