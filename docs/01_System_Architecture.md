@@ -28,7 +28,7 @@ The system follows a **3-Tier Architecture**, as explicitly documented in the re
 ![](../assets/System_Architecture_Diagram(3-Tier_Model).png)
 
 
-The presentation tier handles transaction entry and real-time risk visualization, querying Supabase directly through a singleton client. The application tier's **live request path** fits a Prophet model synchronously per API call; it does not use pretrained artifacts. A separate, independent **offline training pipeline** trains a Stacking Ensemble (XGBoost + Random Forest) and writes its output directly to the database on a schedule, outside the live request/response cycle.
+The presentation tier handles transaction entry and real-time risk visualization, querying Supabase directly through a singleton client. The application tier's **live request path** fits a Prophet model during each forecasting request call; it does not use pretrained artifacts. A separate, independent **offline training pipeline** trains a Stacking Ensemble (XGBoost + Random Forest) and writes its output directly to the database on a schedule, outside the live request/response cycle.
 
 **4. System Components**
 
@@ -73,7 +73,7 @@ The presentation tier handles transaction entry and real-time risk visualization
 |Offline Training|XGBoost, Random Forest, Scikit-learn (LabelEncoder), joblib|
 |Frontend|Next.js 14, TypeScript, Tailwind CSS, Recharts, SHA-256 (crypto.subtle)|
 |Security / Data|Supabase (PostgreSQL), Row-Level Security, SECURITY DEFINER Views|
-|DevOps|GitHub Actions (Scheduled CI/CD)|
+|DevOps|GitHub Actions (Scheduled Workflow Automation))|
 
 
 Repository tags reference Facebook Prophet and Monte Carlo simulation. Prophet is verified as the live inference engine (Section 4). No stochastic/random-sampling Monte Carlo process was found in the live request path; the /simulate route applies a fixed scenario multiplier plus a small uniform random noise factor, which is distinct from a true Monte Carlo simulation.
@@ -83,7 +83,7 @@ Repository tags reference Facebook Prophet and Monte Carlo simulation. Prophet i
 |**Component**|**Deployment**|**Status**|
 | :- | :- | :- |
 |Frontend|Vercel — live at cashflow-forecasting-and-risk-simul.vercel.app|Implemented|
-|Backend (FastAPI) hosting platform|Render — Production deployment serving the FastAPI API consumed by the frontend application|Implemented|
+|Backend (FastAPI) hosting platform|Render — Hosts the production FastAPI backend responsible for forecasting services, business logic, and database communication.|Implemented|
 |Database|Supabase (PostgreSQL)|Implemented|
 |CI/CD|GitHub Actions — scheduled nightly job (offline training pipeline)|Implemented|
 |Environment variables|Not enumerated in repository documentation|Not Disclosed|
@@ -98,16 +98,16 @@ Repository tags reference Facebook Prophet and Monte Carlo simulation. Prophet i
 |SECURITY DEFINER Views|v\_client\_risk\_status and v\_legal\_evidence\_vault intentionally bypass RLS for specific reliable anon-key reads — a documented design tradeoff, not an oversight|Implemented|
 |Auth|Supabase Auth (auth.users) as the identity anchor on the frontend; all user data isolated via foreign key relationships|Implemented|
 |CORS Policy|FastAPI backend sets allow\_origins=["\*"] — permissive, accepts requests from any origin|Implemented (permissive — verified)|
-|Backend-Side Authentication|The FastAPI backend is deployed on Render, exposing REST API endpoints consumed by the Next.js frontend. Business logic, forecasting services, and database interactions are executed within the Render-hosted application.|Implemented|
+|Backend-Side Authentication|Backend authentication is currently delegated to Supabase Auth on the client side. The FastAPI routes do not implement additional server-side authentication or authorization middleware.|Implemented|
 
 
 **9. Constraints**
 
-- Backend hosting platform and environment variable configuration are not documented in the repository
+- Backend is deployed on Render and the frontend is deployed on Vercel. The repository does not document deployment configuration details such as Render service settings or environment variable values.
 - Prophet is the verified live inference engine; the Stacking Ensemble (XGBoost + Random Forest) operates only in the offline training pipeline and does not serve live user requests
 - The offline training pipeline (stochastic\_engine.py → forecaster.py) writes forecasts for a single hardcoded test user\_id, not per real user
 - advisor.py and generator.py are imported in main.py but not called by any verified route; their functionality is not currently exposed via the API
-- The frontend (useForecast.ts) calls an external URL (prophet-ai-backend.vercel.app) that does not correspond to any backend deployment documented in this repository; on request failure, it silently substitutes hardcoded mock data client-side rather than surfacing an error
+- The frontend communicates with a separately deployed FastAPI backend hosted on Render. Repository documentation does not include deployment configuration details such as environment variables, service configuration, or networking setup.
 - The FastAPI backend has no server-side authentication check and a fully permissive CORS policy
 - The "Stochastic Risk Corridors" applied in /simulate are a fixed multiplier plus small uniform random noise, not a true Monte Carlo (repeated random sampling) process
 - Architecture reflects the state of the repository's main branch source code at time of writing
