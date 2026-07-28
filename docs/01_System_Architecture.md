@@ -25,7 +25,7 @@ Where a component's presence in the codebase is confirmed but its integration in
 **3. High-Level Architecture**\
 The system follows a **3-Tier Architecture**, as explicitly documented in the repository.
 
-![](system_architecture.png)
+![](assets/System_Architecture_Diagram(3-Tier_Model).png)
 
 
 The presentation tier handles transaction entry and real-time risk visualization, querying Supabase directly through a singleton client. The application tier's **live request path** fits a Prophet model synchronously per API call; it does not use pretrained artifacts. A separate, independent **offline training pipeline** trains a Stacking Ensemble (XGBoost + Random Forest) and writes its output directly to the database on a schedule, outside the live request/response cycle.
