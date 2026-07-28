@@ -3,8 +3,8 @@
 **Version:** 1.0  
 **Last Updated:** July 2026  
 **Author:** Subrat Kumar Jena  
-**  
-1\. Overview**
+
+**1\. Overview**
 
 This document describes the API endpoints exposed by the platform's FastAPI backend (backend/main.py), verified directly against source code. Backend source code is the highest-authority source used in this document; the README's marketing description of the forecasting engine is not used where it conflicts with verified route behavior (see 01_System_Architecture.md for the full correction).
 
@@ -16,7 +16,7 @@ This document describes the API endpoints exposed by the platform's FastAPI back
 
 **3\. API Architecture**
 
-The Next.js frontend is documented to communicate with a FastAPI backend over HTTP, using axios (verified in frontend/hooks/useForecast.ts). **Repository inconsistency disclosed rather than hidden:** the specific URL called by the frontend (<https://prophet-ai-backend.vercel.app>) does not match any backend deployment documented elsewhere in this repository, and no environment-variable-based API base URL was found to reconcile this. This document describes the backend routes as implemented in backend/main.py, independent of which URL the frontend is currently pointed at.
+The Next.js frontend is documented to communicate with a FastAPI backend over HTTP, using axios (verified in frontend/hooks/useForecast.ts). **Repository inconsistency disclosed rather than hidden:** the specific URL called by the frontend does not match any backend deployment documented elsewhere in this repository, and no environment-variable-based API base URL was found to reconcile this. This document describes the backend routes as implemented in backend/main.py, independent of which URL the frontend is currently pointed at.
 
 **4\. Authentication**
 
@@ -46,16 +46,14 @@ The Next.js frontend is documented to communicate with a FastAPI backend over HT
 | **Validation** | Pydantic model validation on request body only (user_id: str, risk_level: str, window: int). No range/enum validation on risk_level - invalid values silently fall back to a neutral multiplier rather than raising an error.                                                                                                                  |
 | **Status**     | Implemented (with disclosed dead parameter and silent fallback behavior)                                                                                                                                                                                                                                                                       |
 
-**  
-Verified error responses:**
+**Verified error responses:**
 
 | **Status Code** | **Trigger**                                        | **Response Body**                                                       |
 | --------------- | -------------------------------------------------- | ----------------------------------------------------------------------- |
 | 404             | No transaction history found for the given user_id | {"detail": "Data Void: No transaction history found for ID {user_id}."} |
 | 500             | Any other exception during processing              | {"detail": "Engine Failure: {error message}"}                           |
 
-**  
-GET /forecast/{user_id}**
+**GET /forecast/{user_id}**
 
 | **Field**      | **Value**                                                                                                  |
 | -------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -66,16 +64,15 @@ GET /forecast/{user_id}**
 | **Validation** | No explicit validation beyond FastAPI's automatic path-parameter type coercion (string)                    |
 | **Status**     | Implemented                                                                                                |
 
-**  
-Verified error responses:**
+**Verified error responses:**
 
 | **Status Code** | **Trigger**                                       | **Response Body**                  |
 | --------------- | ------------------------------------------------- | ---------------------------------- |
 | 404             | user_id has no transaction data (empty DataFrame) | {"detail": "User data not found."} |
 | 500             | Any other exception                               | {"detail": "{error message}"}      |
 
-**  
-6\. Error Handling**
+
+**6\. Error Handling**
 
 Both /simulate and /forecast/{user_id} follow the same pattern: a try/except block catches HTTPException explicitly (re-raised as-is) and falls back to a generic 500 with the raw exception message for anything else. There is no structured error code system beyond standard HTTP status codes (404, 500) and no distinct error types - all unhandled failures surface as a raw Python exception string in the response body.
 
