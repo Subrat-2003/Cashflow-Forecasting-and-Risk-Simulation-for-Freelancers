@@ -83,7 +83,7 @@ Repository tags reference Facebook Prophet and Monte Carlo simulation. Prophet i
 |**Component**|**Deployment**|**Status**|
 | :- | :- | :- |
 |Frontend|Vercel — live at cashflow-forecasting-and-risk-simul.vercel.app|Implemented|
-|Backend (FastAPI) hosting platform|Frontend source code references https://prophet-ai-backend.vercel.app as its API base URL; this cannot be confirmed as this repository's own deployed backend and is not documented anywhere in the repo|Not Disclosed / Unverified|
+|Backend (FastAPI) hosting platform|Render — Production deployment serving the FastAPI API consumed by the frontend application|Implemented|
 |Database|Supabase (PostgreSQL)|Implemented|
 |CI/CD|GitHub Actions — scheduled nightly job (offline training pipeline)|Implemented|
 |Environment variables|Not enumerated in repository documentation|Not Disclosed|
@@ -93,12 +93,12 @@ Repository tags reference Facebook Prophet and Monte Carlo simulation. Prophet i
 
 |**Mechanism**|**Description**|**Status**|
 | :- | :- | :- |
-|SHA-256 Integrity Shield|Every transaction hashed at write time from Amount + Date + Category + UserID; any post-write edit causes a hash mismatch, invalidating the record|` `Implemented|
-|Row-Level Security (RLS)|Enforces row-level data isolation per user in Supabase|` `Implemented|
-|SECURITY DEFINER Views|v\_client\_risk\_status and v\_legal\_evidence\_vault intentionally bypass RLS for specific reliable anon-key reads — a documented design tradeoff, not an oversight|` `Implemented|
-|Auth|Supabase Auth (auth.users) as the identity anchor on the frontend; all user data isolated via foreign key relationships|` `Implemented|
-|CORS Policy|FastAPI backend sets allow\_origins=["\*"] — permissive, accepts requests from any origin|` `Implemented (permissive — verified)|
-|Backend-Side Authentication|No authentication dependency or token check is present on any FastAPI route in main.py; identity/session handling occurs client-side via Supabase only|` `Implemented (verified gap — no server-side enforcement)|
+|SHA-256 Integrity Shield|Every transaction hashed at write time from Amount + Date + Category + UserID; any post-write edit causes a hash mismatch, invalidating the record|Implemented|
+|Row-Level Security (RLS)|Enforces row-level data isolation per user in Supabase|Implemented|
+|SECURITY DEFINER Views|v\_client\_risk\_status and v\_legal\_evidence\_vault intentionally bypass RLS for specific reliable anon-key reads — a documented design tradeoff, not an oversight|Implemented|
+|Auth|Supabase Auth (auth.users) as the identity anchor on the frontend; all user data isolated via foreign key relationships|Implemented|
+|CORS Policy|FastAPI backend sets allow\_origins=["\*"] — permissive, accepts requests from any origin|Implemented (permissive — verified)|
+|Backend-Side Authentication|No authentication dependency or token check is present on any FastAPI route in main.py; identity/session handling occurs client-side via Supabase only|Implemented (verified gap — no server-side enforcement)|
 
 
 **9. Constraints**
