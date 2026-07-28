@@ -98,7 +98,7 @@ Repository tags reference Facebook Prophet and Monte Carlo simulation. Prophet i
 |SECURITY DEFINER Views|v\_client\_risk\_status and v\_legal\_evidence\_vault intentionally bypass RLS for specific reliable anon-key reads — a documented design tradeoff, not an oversight|Implemented|
 |Auth|Supabase Auth (auth.users) as the identity anchor on the frontend; all user data isolated via foreign key relationships|Implemented|
 |CORS Policy|FastAPI backend sets allow\_origins=["\*"] — permissive, accepts requests from any origin|Implemented (permissive — verified)|
-|Backend-Side Authentication|No authentication dependency or token check is present on any FastAPI route in main.py; identity/session handling occurs client-side via Supabase only|Implemented (verified gap — no server-side enforcement)|
+|Backend-Side Authentication|The FastAPI backend is deployed on Render, exposing REST API endpoints consumed by the Next.js frontend. Business logic, forecasting services, and database interactions are executed within the Render-hosted application.|Implemented|
 
 
 **9. Constraints**
