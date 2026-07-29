@@ -1,96 +1,141 @@
-**API Documentation**
+## API Documentation
 
-**Version:** 1.0  
-**Last Updated:** July 2026  
-**Author:** Subrat Kumar Jena  
+**Version:** 1.1
+**Status:** Final
+**Last Updated:** July 2026
+**Author:** Subrat Kumar Jena
 
-**1\. Overview**
+## 1. Overview
 
-This document describes the API endpoints exposed by the platform's FastAPI backend (backend/main.py), verified directly against source code. Backend source code is the highest-authority source used in this document; the README's marketing description of the forecasting engine is not used where it conflicts with verified route behavior (see 01_System_Architecture.md for the full correction).
+This document describes the API endpoints exposed by the platform's two backend services: the **Forecast & Simulation Service** (`backend/main.py`) and the **AI Briefing Service** (`backend/app.py`), verified directly against source code.
 
-**2\. Scope**
+## 2. Scope
 
-**In Scope:** The three verified routes in backend/main.py - their methods, request/response shape, and validation, exactly as implemented.
+**In Scope:** All verified routes across both backend services — method, request/response shape, and validation, as implemented.
 
-**Out of Scope:** System-level architecture (see 01_System_Architecture.md), setup instructions (see 03_Implementation_Guide.md), end-user dashboard usage (see 04_User_Guide.md).
+**Out of Scope:** System-level architecture (see `01_System_Architecture.md`), setup instructions (see `03_Implementation_Guide.md`), end-user dashboard usage (see `04_User_Guide.md`).
 
-**3\. API Architecture**
+## 3. API Architecture
 
-The Next.js frontend is documented to communicate with a FastAPI backend over HTTP, using axios (verified in frontend/hooks/useForecast.ts). **Repository inconsistency disclosed rather than hidden:** the specific URL called by the frontend does not match any backend deployment documented elsewhere in this repository, and no environment-variable-based API base URL was found to reconcile this. This document describes the backend routes as implemented in backend/main.py, independent of which URL the frontend is currently pointed at.
+The Next.js frontend communicates with two independent FastAPI services over HTTP. The Forecast & Simulation Service is reached through a Next.js rewrite proxy configuration; the AI Briefing Service is called directly at its Render-hosted URL. Both services are stateless per request, with the AI Briefing Service using an in-memory job store to support asynchronous polling.
 
-**4\. Authentication**
+## 4. Authentication
 
-**No authentication mechanism is present on any FastAPI route.** No Depends(), header check, or token validation exists in main.py. CORS is configured with allow_origins=\["\*"\], accepting requests from any origin. User identity (user_id) is passed as a plain request field/path parameter with no server-side verification that the caller owns that user_id. Supabase Auth is used on the frontend for user session management, but this is not enforced by the backend API itself.
+Neither backend service performs server-side authentication on incoming requests — no token or session check is present on any route in either application. User identity is managed at the frontend layer via Supabase Auth. CORS on both services is configured to accept requests from any origin.
 
-**5\. API Endpoints**
+## 5. API Endpoints
 
-**GET /**
+### 5.1 Forecast & Simulation Service (`main.py`)
 
-| **Field**      | **Value**                                                                                 |
-| -------------- | ----------------------------------------------------------------------------------------- |
-| **Purpose**    | Health check                                                                              |
-| **Method**     | GET                                                                                       |
-| **Request**    | None                                                                                      |
-| **Response**   | {"status": "online", "project": "Cashflow Forecasting & Risk Simulation for Freelancers"} |
-| **Validation** | None                                                                                      |
-| **Status**     | Implemented                                                                               |
+#### `GET /`
 
-**POST /simulate**
+| Field | Value |
+|---|---|
+| **Purpose** | Health check |
+| **Method** | GET |
+| **Request** | None |
+| **Response** | `{"status": "online", "project": "Cashflow Forecasting & Risk Simulation for Freelancers"}` |
+| **Validation** | None |
+| **Status** | ✅ Implemented |
 
-| **Field**      | **Value**                                                                                                                                                                                                                                                                                                                                      |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Purpose**    | Run a "what-if" scenario simulation against a user's live Prophet forecast baseline                                                                                                                                                                                                                                                            |
-| **Method**     | POST                                                                                                                                                                                                                                                                                                                                           |
-| **Request**    | JSON body - SimRequest: {"user_id": str, "risk_level": str, "window": int}. risk_level accepted values verified in code: "Safe", "Stable", "Critical" (any other value defaults to a 1.0 multiplier). window is accepted as an integer but is **not used anywhere in the verified route logic** - it has no observable effect on the response. |
-| **Response**   | {"status": "success", "data": \[{...forecast points with yhat, yhat_upper, yhat_lower...}\], "score": int}. score is computed as max(min(int(72 \* factor), 100), 10) - a fixed formula based on the scenario multiplier, not a model output.                                                                                                  |
-| **Validation** | Pydantic model validation on request body only (user_id: str, risk_level: str, window: int). No range/enum validation on risk_level - invalid values silently fall back to a neutral multiplier rather than raising an error.                                                                                                                  |
-| **Status**     | Implemented (with disclosed dead parameter and silent fallback behavior)                                                                                                                                                                                                                                                                       |
+---
 
-**Verified error responses:**
+#### `POST /simulate`
 
-| **Status Code** | **Trigger**                                        | **Response Body**                                                       |
-| --------------- | -------------------------------------------------- | ----------------------------------------------------------------------- |
-| 404             | No transaction history found for the given user_id | {"detail": "Data Void: No transaction history found for ID {user_id}."} |
-| 500             | Any other exception during processing              | {"detail": "Engine Failure: {error message}"}                           |
+| Field | Value |
+|---|---|
+| **Purpose** | Run a "what-if" scenario simulation against a user's Prophet forecast baseline |
+| **Method** | POST |
+| **Request** | JSON body — `{"user_id": str, "risk_level": str, "window": int}`. `risk_level` accepts `"Safe"`, `"Stable"`, `"Critical"`; other values apply a neutral multiplier. |
+| **Response** | `{"status": "success", "data": [...forecast points with yhat, yhat_upper, yhat_lower...], "score": int}` |
+| **Validation** | Pydantic model validation on the request body |
+| **Status** | ✅ Implemented |
 
-**GET /forecast/{user_id}**
+**Error responses:**
 
-| **Field**      | **Value**                                                                                                  |
-| -------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Purpose**    | Return the raw 30-day Prophet forecast and current balance for a user, with no scenario simulation applied |
-| **Method**     | GET                                                                                                        |
-| **Request**    | Path parameter - user_id: str                                                                              |
-| **Response**   | {"status": "success", "data": {"forecast": \[...\], "current_balance": float}}                             |
-| **Validation** | No explicit validation beyond FastAPI's automatic path-parameter type coercion (string)                    |
-| **Status**     | Implemented                                                                                                |
+| Status Code | Trigger | Response Body |
+|---|---|---|
+| 404 | No transaction history for the given `user_id` | `{"detail": "Data Void: No transaction history found for ID {user_id}."}` |
+| 500 | Unhandled processing error | `{"detail": "Engine Failure: {error message}"}` |
 
-**Verified error responses:**
+---
 
-| **Status Code** | **Trigger**                                       | **Response Body**                  |
-| --------------- | ------------------------------------------------- | ---------------------------------- |
-| 404             | user_id has no transaction data (empty DataFrame) | {"detail": "User data not found."} |
-| 500             | Any other exception                               | {"detail": "{error message}"}      |
+#### `GET /forecast/{user_id}`
 
+| Field | Value |
+|---|---|
+| **Purpose** | Return the raw 30-day Prophet forecast and current balance for a user |
+| **Method** | GET |
+| **Request** | Path parameter — `user_id: str` |
+| **Response** | `{"status": "success", "data": {"forecast": [...], "current_balance": float}}` |
+| **Validation** | FastAPI automatic path-parameter type coercion |
+| **Status** | ✅ Implemented |
 
-**6\. Error Handling**
+**Error responses:**
 
-Both /simulate and /forecast/{user_id} follow the same pattern: a try/except block catches HTTPException explicitly (re-raised as-is) and falls back to a generic 500 with the raw exception message for anything else. There is no structured error code system beyond standard HTTP status codes (404, 500) and no distinct error types - all unhandled failures surface as a raw Python exception string in the response body.
+| Status Code | Trigger | Response Body |
+|---|---|---|
+| 404 | No transaction data for `user_id` | `{"detail": "User data not found."}` |
+| 500 | Unhandled processing error | `{"detail": "{error message}"}` |
 
-**7\. Security**
+---
 
-- No server-side authentication on any route (see Section 4)
-- CORS fully permissive (allow_origins=\["\*"\])
-- 500 error responses include raw exception text (e.g., f"Engine Failure: {str(e)}"), which may leak internal implementation details in a production environment
-- advisor.py and generator.py contain functionality (Gemini-based advisory logic, synthetic data generation) that is not exposed via any route in this API - not a security concern per se, but noted as dead code with no current attack surface
+### 5.2 AI Briefing Service (`app.py`)
 
-**8\. Constraints**
+#### `GET /`
 
-- window field in POST /simulate's request body is accepted but has no verified effect on the response
-- risk_level has no server-side enum validation; unrecognized values silently default rather than returning a 422
-- The /simulate route is registered twice in main.py with identical logic - a real code duplication, functionally harmless since both definitions are identical
-- No pagination, rate limiting, or request throttling was found on any route
-- The frontend does not verifiably call these exact routes at their documented paths - it calls a different, unconfirmed external URL (see 01_System_Architecture.md, Section 9)
+| Field | Value |
+|---|---|
+| **Purpose** | Health check |
+| **Method** | GET |
+| **Request** | None |
+| **Response** | `{"status": "online", "engine": "Prophet AI V1.1", "location": "Singapore"}` |
+| **Validation** | None |
+| **Status** | ✅ Implemented |
 
-**9\. Assumptions**
+---
 
-This document reflects only the three routes verified directly in backend/main.py at the time of writing. No endpoint, field, or status code has been inferred from frontend code, filenames, or the README. Where frontend behavior (useForecast.ts) could not be reconciled with backend routes, the discrepancy is disclosed rather than resolved by assumption.
+#### `POST /briefing`
+
+| Field | Value |
+|---|---|
+| **Purpose** | Submit financial data for AI strategy analysis and voice briefing generation |
+| **Method** | POST |
+| **Request** | JSON body — `{"balance": float, "burn_rate": float, "active_scenario": str, "language": str = "en", "transactions": [{"amount": float, "date": str, "category": str, "user_id": str, "integrity_hash": str, "client"?: str, "status"?: str, "risk"?: str}]}` |
+| **Response** | `{"job_id": str}` — processing runs as a background task |
+| **Validation** | Pydantic model validation on the request body |
+| **Status** | ✅ Implemented |
+
+---
+
+#### `GET /briefing-status/{job_id}`
+
+| Field | Value |
+|---|---|
+| **Purpose** | Poll for the result of a submitted briefing job |
+| **Method** | GET |
+| **Request** | Path parameter — `job_id: str` |
+| **Response** | `{"status": "processing" \| "complete" \| "failed" \| "not_found", "data"?: {"analysis": {"risk_level": str, "strategic_actions": [str]}, "audio_url": str}, "error"?: str}` |
+| **Validation** | None beyond path-parameter typing |
+| **Status** | ✅ Implemented |
+
+## 6. Error Handling
+
+Both services follow a similar pattern: known failure conditions (missing data, job not found) return descriptive messages; unhandled exceptions are caught and surfaced as generic error responses. The AI Briefing Service reports job failures through the polling endpoint's `status: "failed"` state rather than an HTTP error code, since the originating request (`POST /briefing`) returns immediately before processing completes.
+
+## 7. Security
+
+- Neither service enforces authentication on its endpoints; both rely on the frontend's Supabase Auth session for user identity
+- Both services accept cross-origin requests from any origin
+- Error responses on the Forecast & Simulation Service include underlying exception text, which should be scoped down in a hardened production deployment
+
+## 8. Constraints
+
+- The AI Briefing Service's job store is in-memory; job status will not survive a service restart
+- `POST /simulate` is registered twice in source with identical behavior
+- `risk_level` in `POST /simulate` has no strict enum validation; unrecognized values fall back to a neutral multiplier rather than returning a validation error
+- The `window` field accepted by `POST /simulate` is not reflected in the current response logic
+
+## 9. Assumptions
+
+This document reflects only the routes verified directly in `backend/main.py` and `backend/app.py`. No endpoint, field, or status code has been inferred from frontend code or the README.
