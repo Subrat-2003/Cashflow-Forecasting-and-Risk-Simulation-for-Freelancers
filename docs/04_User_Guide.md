@@ -94,4 +94,4 @@ Each transaction is protected by an integrity check at the time it's created, wh
 
 - The AI financial briefing depends on a live AI service; if that service is temporarily unavailable, the briefing may not complete
 - Scenario simulation reflects projected outcomes based on available data and selected assumptions, not a guarantee of future results
-- Voice briefings are currently available in English and Hindi only
+- Voice briefings are currently available in English only
